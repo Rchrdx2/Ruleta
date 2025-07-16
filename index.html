@@ -1,151 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruleta Europea - Arquitectura Modular</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ruleta Europea</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div class="container">
-        <!-- Header del juego -->
-        <header class="game-header">
-            <h1>Ruleta Europea</h1>
-            <div class="balance-display">
-                <span class="balance-label">Balance:</span>
-                <span class="balance-amount" id="balance">€1,000</span>
-            </div>
-        </header>
-
-        <!-- Área principal del juego -->
-        <main class="game-main">
-            <!-- Sección de la ruleta -->
-            <section class="roulette-section">
-                <div class="roulette-container">
-                    <div class="roulette-wheel" id="rouletteWheel">
-                        <div class="wheel-center">
-                            <div class="ball" id="ball"></div>
-                        </div>
-                        <div class="wheel-numbers" id="wheelNumbers">
-                            <!-- Los números se generarán dinámicamente -->
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Controles de juego -->
-                <div class="game-controls">
-                    <button class="btn btn--primary btn--lg" id="spinBtn">Girar Ruleta</button>
-                    <button class="btn btn--secondary" id="repeatBtn">Repetir Apuesta</button>
-                    <button class="btn btn--outline" id="clearBtn">Limpiar Mesa</button>
-                </div>
-            </section>
-
-            <!-- Mesa de apuestas -->
-            <section class="betting-table">
-                <div class="betting-grid">
-                    <!-- Números individuales -->
-                    <div class="numbers-grid" id="numbersGrid">
-                        <div class="number-cell green" data-number="0">0</div>
-                        <!-- Números 1-36 se generarán dinámicamente -->
-                    </div>
-
-                    <!-- Apuestas externas -->
-                    <div class="outside-bets">
-                        <div class="bet-row">
-                            <div class="bet-cell" data-bet="dozen1">1ª Docena<br>1-12</div>
-                            <div class="bet-cell" data-bet="dozen2">2ª Docena<br>13-24</div>
-                            <div class="bet-cell" data-bet="dozen3">3ª Docena<br>25-36</div>
-                        </div>
-                        <div class="bet-row">
-                            <div class="bet-cell red" data-bet="red">Rojo</div>
-                            <div class="bet-cell black" data-bet="black">Negro</div>
-                            <div class="bet-cell" data-bet="odd">Impar</div>
-                            <div class="bet-cell" data-bet="even">Par</div>
-                            <div class="bet-cell" data-bet="low">1-18</div>
-                            <div class="bet-cell" data-bet="high">19-36</div>
-                        </div>
-                        <div class="bet-row">
-                            <div class="bet-cell" data-bet="column1">1ª Columna</div>
-                            <div class="bet-cell" data-bet="column2">2ª Columna</div>
-                            <div class="bet-cell" data-bet="column3">3ª Columna</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Panel lateral -->
-            <aside class="game-sidebar">
-                <!-- Selección de fichas -->
-                <div class="chip-selector">
-                    <h3>Fichas</h3>
-                    <div class="chips-container">
-                        <div class="chip" data-value="1">€1</div>
-                        <div class="chip" data-value="5">€5</div>
-                        <div class="chip" data-value="25">€25</div>
-                        <div class="chip" data-value="100">€100</div>
-                    </div>
-                    <div class="selected-chip-info">
-                        <span>Ficha seleccionada: </span>
-                        <span id="selectedChip">€1</span>
-                    </div>
-                </div>
-
-                <!-- Información de apuestas -->
-                <div class="bet-info">
-                    <h3>Apuestas Activas</h3>
-                    <div class="active-bets" id="activeBets">
-                        <p class="no-bets">No hay apuestas activas</p>
-                    </div>
-                    <div class="total-bet">
-                        <strong>Total apostado: <span id="totalBet">€0</span></strong>
-                    </div>
-                </div>
-
-                <!-- Historial de resultados -->
-                <div class="results-history">
-                    <h3>Últimos Resultados</h3>
-                    <div class="history-numbers" id="historyNumbers">
-                        <!-- Los números del historial se mostrarán aquí -->
-                    </div>
-                </div>
-
-                <!-- Estadísticas -->
-                <div class="game-stats">
-                    <h3>Estadísticas</h3>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Giros:</span>
-                            <span class="stat-value" id="totalSpins">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Ganadas:</span>
-                            <span class="stat-value" id="totalWins">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Ganancia:</span>
-                            <span class="stat-value" id="totalProfit">€0</span>
-                        </div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-
-        <!-- Mensaje de resultado -->
-        <div class="result-message" id="resultMessage">
-            <div class="result-content">
-                <h2 id="resultTitle"></h2>
-                <p id="resultText"></p>
-                <div class="result-number" id="resultNumber"></div>
-            </div>
+      <header class="game-header">
+        <h1>Ruleta Europea</h1>
+        <div class="balance-display">
+          <span class="balance-label">Saldo:</span>
+          <span id="balance" class="balance-amount">$50,000 COP</span>
         </div>
+      </header>
 
-        <!-- Overlay de carga -->
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="loading-spinner"></div>
-            <p>Girando ruleta...</p>
-        </div>
+      <main class="game-main">
+        <section class="roulette-section">
+          <div class="roulette-container">
+            <div class="roulette-wheel" id="rouletteWheel">
+              <div class="wheel-center"></div>
+              <div class="ball" id="ball"></div>
+              <div class="wheel-numbers" id="wheelNumbers"></div>
+            </div>
+          </div>
+
+          <div class="game-controls">
+            <button class="btn btn--primary" id="spinBtn">Girar Ruleta</button>
+            <button class="btn btn--secondary" id="repeatBtn">
+              Repetir Apuesta
+            </button>
+            <button class="btn btn--outline" id="clearBtn">Limpiar Mesa</button>
+          </div>
+
+          <div class="betting-table">
+            <div class="betting-grid">
+              <div class="numbers-section">
+                <div class="zero-cell">
+                  <div class="number-cell green" data-number="0">0</div>
+                </div>
+                <div class="numbers-grid" id="numbersGrid">
+                  <!-- Los números se generan dinámicamente -->
+                </div>
+              </div>
+
+              <div class="outside-bets">
+                <div class="dozens-row">
+                  <div class="bet-cell" data-bet="dozen1">
+                    1ª Docena<br />1-12
+                  </div>
+                  <div class="bet-cell" data-bet="dozen2">
+                    2ª Docena<br />13-24
+                  </div>
+                  <div class="bet-cell" data-bet="dozen3">
+                    3ª Docena<br />25-36
+                  </div>
+                </div>
+
+                <div class="bet-row">
+                  <div class="bet-cell red" data-bet="red">Rojo</div>
+                  <div class="bet-cell black" data-bet="black">Negro</div>
+                  <div class="bet-cell" data-bet="odd">Impar</div>
+                  <div class="bet-cell" data-bet="even">Par</div>
+                  <div class="bet-cell" data-bet="low">1-18</div>
+                  <div class="bet-cell" data-bet="high">19-36</div>
+                </div>
+
+                <div class="columns-row">
+                  <div class="bet-cell" data-bet="column1">1ª Columna</div>
+                  <div class="bet-cell" data-bet="column2">2ª Columna</div>
+                  <div class="bet-cell" data-bet="column3">3ª Columna</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="game-sidebar">
+          <div class="chip-selector">
+            <h3>Seleccionar Ficha</h3>
+            <div class="chips-container">
+              <div class="chip" data-value="1000">$1K</div>
+              <div class="chip" data-value="3000">$3K</div>
+              <div class="chip" data-value="5000">$5K</div>
+            </div>
+            <p class="selected-chip-info">
+              Ficha seleccionada: <span id="selectedChip">$1,000 COP</span>
+            </p>
+          </div>
+
+          <div class="bet-info">
+            <h3>Apuestas Activas</h3>
+            <div class="active-bets" id="activeBets">
+              <p class="no-bets">No hay apuestas activas</p>
+            </div>
+            <div class="total-bet">
+              <strong>Total apostado: <span id="totalBet">$0 COP</span></strong>
+            </div>
+          </div>
+
+          <div class="results-history">
+            <h3>Últimos Resultados</h3>
+            <div class="history-numbers" id="historyNumbers">
+              <!-- Los números del historial se generan dinámicamente -->
+            </div>
+          </div>
+
+          <div class="game-stats">
+            <h3>Estadísticas</h3>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="stat-label">Giros totales:</span>
+                <span class="stat-value" id="totalSpins">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Giros ganados:</span>
+                <span class="stat-value" id="totalWins">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Ganancia total:</span>
+                <span class="stat-value" id="totalProfit">$0 COP</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Overlay de carga -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+      <p>Girando ruleta...</p>
+    </div>
+
+    <!-- Mensaje de resultado -->
+    <div class="result-message" id="resultMessage">
+      <div class="result-content">
+        <div class="result-number" id="resultNumber">0</div>
+        <h2 id="resultTitle">¡Resultado!</h2>
+        <p id="resultText">Mensaje del resultado</p>
+        <button
+          class="btn btn--primary"
+          onclick="this.parentElement.parentElement.classList.remove('show')"
+        >
+          Continuar
+        </button>
+      </div>
     </div>
 
     <script src="app.js"></script>
-</body>
+  </body>
 </html>
