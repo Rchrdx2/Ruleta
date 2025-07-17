@@ -1,7 +1,7 @@
 /**
  * JUEGO DE RULETA EUROPEA - ARQUITECTURA MODULAR
- * Implementación completa con control invisible de balance
- * Versión con protección selectiva para apuestas de 5k a números
+ * Implementación con control específico para apuestas únicas de números
+ * Solo apuestas únicas de 3k/5k COP a números pierden protección
  */
 
 // =============================
@@ -49,7 +49,7 @@ const ROULETTE_DATA = {
     { number: 26, color: "black" },
   ],
   betTypes: {
-    straight: { name: "Número", payout: 35 },
+    straight: { name: "Número", payout: 20 }, // Pago reducido de 35 a 20
     red: { name: "Rojo", payout: 1 },
     black: { name: "Negro", payout: 1 },
     odd: { name: "Impar", payout: 1 },
@@ -71,15 +71,16 @@ const ROULETTE_DATA = {
     spinDuration: 4000,
     currency: "COP",
     exchangeRate: 1,
-    // SISTEMA INVISIBLE DE CONTROL - CON PROTECCIÓN SELECTIVA
+    // SISTEMA DE CONTROL CON RESTRICCIONES ESPECÍFICAS
     balanceControl: {
       enabled: true,
       minBalance: 40000, // Forzar victorias bajo este límite
       maxBalance: 97000, // Forzar pérdidas sobre este límite
       absoluteMaxBalance: 100000, // LÍMITE ABSOLUTO - NUNCA SUPERAR
-      winMultiplier: 1.0, // SIN BONIFICACIÓN - Multiplicador normal
       transitionZone: 5000, // Zona de transición gradual
       naturalProbability: 0.3, // Probabilidad base de resultado natural
+      finalPushZone: 15000, // Zona de impulso final
+      luckStreakEnabled: true, // Activar rachas de suerte
     },
   },
 };
@@ -103,36 +104,93 @@ class RouletteEngine {
     this.consecutiveLosses = 0;
     this.consecutiveWins = 0;
     this.lastControlAction = null;
+
+    // VARIABLES PARA CONTROL DE PROBABILIDADES
+    this.luckStreak = 0; // Contador de racha de suerte
+    this.progressStats = {
+      // Estadísticas de progreso
+      timesNear90k: 0,
+      timesReached95k: 0,
+      timesReached100k: 0,
+    };
   }
 
-  // NUEVO MÉTODO PRIVADO: Verificar si es una apuesta única de 5k a número
-  _isSingle5kStraightBet() {
+  // MÉTODO MODIFICADO: Verificar apuestas únicas de números con montos específicos
+  _isSingleNumberBetRestricted() {
     // Verificar que solo haya una apuesta activa
     if (this.currentBets.size !== 1) {
       return false;
     }
 
-    // Obtener la única apuesta
     const bet = Array.from(this.currentBets.values())[0];
 
-    // Verificar que sea una apuesta directa a número de exactamente 5000 COP
-    return bet.type === "straight" && bet.amount === 5000;
+    // Solo aplicar restricción para apuestas a números específicos de 3k o 5k COP
+    return (
+      bet.type === "straight" && (bet.amount === 3000 || bet.amount === 5000)
+    );
   }
 
-  // MÉTODO PRIVADO: Determinar acción de control invisible - MODIFICADO
+  // MÉTODO: Determinar si activar racha de suerte
+  _shouldTriggerLuckStreak() {
+    const progress = this.balance / 100000;
+
+    if (progress >= 0.6 && progress < 0.9) {
+      return Math.random() < 0.35; // 35% chance de racha
+    }
+
+    return false;
+  }
+
+  // MÉTODO: Helper para seleccionar de opciones
+  _selectFromOptions(options) {
+    if (!options.length) return null;
+    const idx = Math.floor(Math.random() * options.length);
+    return options[idx];
+  }
+
+  // MÉTODO PRINCIPAL MODIFICADO: Control con restricciones específicas
   _getControlAction() {
     const config = ROULETTE_DATA.config.balanceControl;
 
     if (!config.enabled) return null;
 
-    // NUEVA VALIDACIÓN: Desactivar protección para apuesta única de 5k a número
-    if (this._isSingle5kStraightBet()) {
-      return null; // Sin protección - resultado completamente aleatorio
+    // NUEVA LÓGICA: Control específico para apuestas únicas de números 3k/5k
+    if (this._isSingleNumberBetRestricted()) {
+      // Sin protección para fichas únicas de 3k/5k COP a números
+      return null; // Resultado completamente aleatorio
     }
 
-    // CONTROL ABSOLUTO: Si está cerca del límite máximo absoluto
+    // RESTO DE LÓGICA: Protección activa para todos los demás casos
+
+    // Control de rachas de suerte
+    if (this.luckStreak > 0) {
+      this.luckStreak--;
+      return "favor_win";
+    }
+
+    // Activar racha de suerte
+    if (this._shouldTriggerLuckStreak()) {
+      this.luckStreak = 4;
+      return "luck_streak";
+    }
+
+    // Control absoluto cerca del límite máximo
     if (this.balance >= config.absoluteMaxBalance - 10000) {
       return "force_lose_hard";
+    }
+
+    // Zona de impulso final mejorada (75k-95k)
+    if (this.balance >= 75000 && this.balance < 95000) {
+      const finalPush = (this.balance - 75000) / 20000;
+      const winProbability = 0.5 + finalPush * 0.3;
+      if (Math.random() < winProbability) return "favor_win";
+    }
+
+    // Zona de crecimiento acelerado (60k-75k)
+    if (this.balance >= 60000 && this.balance < 75000) {
+      const growthBoost = (this.balance - 60000) / 15000;
+      const winProbability = 0.45 + growthBoost * 0.25;
+      if (Math.random() < winProbability) return "favor_win";
     }
 
     // Control directo en límites extremos
@@ -164,24 +222,28 @@ class RouletteEngine {
 
     // Control adaptativo basado en rachas
     if (this.consecutiveLosses >= 3 && this.balance < config.initialBalance) {
-      return Math.random() < 0.6 ? "favor_win" : null;
+      return Math.random() < 0.7 ? "favor_win" : null;
     }
 
     if (this.consecutiveWins >= 3 && this.balance > config.initialBalance) {
-      return Math.random() < 0.4 ? "favor_lose" : null;
+      return Math.random() < 0.35 ? "favor_lose" : null;
     }
 
     return null;
   }
 
-  // MÉTODO MODIFICADO: Spin con control invisible
+  // MÉTODO: Spin con control invisible
   spin() {
     const controlAction = this._getControlAction();
     this.lastControlAction = controlAction;
 
     let winningNumber;
 
-    if (controlAction === "force_win" || controlAction === "favor_win") {
+    if (
+      controlAction === "force_win" ||
+      controlAction === "favor_win" ||
+      controlAction === "luck_streak"
+    ) {
       winningNumber = this._generateWinningNumber();
     } else if (
       controlAction === "force_lose" ||
@@ -190,14 +252,12 @@ class RouletteEngine {
     ) {
       winningNumber = this._generateLosingNumber();
     } else {
-      // Resultado completamente aleatorio
       const randomIndex = Math.floor(
         Math.random() * ROULETTE_DATA.numbers.length,
       );
       winningNumber = ROULETTE_DATA.numbers[randomIndex];
     }
 
-    // Actualizar historial normalmente
     this.history.unshift(winningNumber);
     if (this.history.length > 10) {
       this.history.pop();
@@ -207,7 +267,7 @@ class RouletteEngine {
     return winningNumber;
   }
 
-  // MÉTODO SIMPLIFICADO: Generar número ganador normal
+  // MÉTODO MEJORADO: Generar número ganador con mejor priorización
   _generateWinningNumber() {
     if (this.currentBets.size === 0) {
       return this._generateRandomNumber();
@@ -215,12 +275,17 @@ class RouletteEngine {
 
     const winningOptions = [];
 
-    // Priorizar apuestas existentes para asegurar victoria
     this.currentBets.forEach((bet, betKey) => {
       if (bet.type === "straight") {
+        // Priorizar números específicos cuando el balance es alto
+        const priority =
+          this.balance > 65000
+            ? bet.payout * bet.amount * 3 // Triple prioridad
+            : bet.payout * bet.amount * 1.5; // 50% más prioridad
+
         winningOptions.push({
           number: bet.number,
-          priority: bet.payout * bet.amount,
+          priority: priority,
           bet: bet,
         });
       } else {
@@ -239,16 +304,20 @@ class RouletteEngine {
       return this._generateRandomNumber();
     }
 
-    // Seleccionar cualquier opción ganadora (sin priorización excesiva)
-    const selectedOption =
-      winningOptions[Math.floor(Math.random() * winningOptions.length)];
+    // Ordenar por prioridad y seleccionar más favorablemente
+    winningOptions.sort((a, b) => b.priority - a.priority);
+    const topOptions = winningOptions.slice(
+      0,
+      Math.ceil(winningOptions.length * 0.6),
+    );
 
+    const selectedOption = this._selectFromOptions(topOptions);
     return ROULETTE_DATA.numbers.find(
       (n) => n.number === selectedOption.number,
     );
   }
 
-  // MÉTODO PRIVADO: Generar número perdedor - MEJORADO
+  // MÉTODO: Generar número perdedor
   _generateLosingNumber() {
     const config = ROULETTE_DATA.config.balanceControl;
 
@@ -256,12 +325,9 @@ class RouletteEngine {
       return this._generateRandomNumber();
     }
 
-    // Si está cerca del límite absoluto, ser más agresivo
     const isNearLimit = this.balance >= config.absoluteMaxBalance - 10000;
-
     const losingNumbers = [];
 
-    // Encontrar números que no ganen ninguna apuesta
     ROULETTE_DATA.numbers.forEach((numberData) => {
       let isWinning = false;
 
@@ -280,16 +346,14 @@ class RouletteEngine {
       return this._findMinimumWinNumber();
     }
 
-    // Si está cerca del límite, asegurar una pérdida total
     if (isNearLimit) {
       return losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
     }
 
-    // Seleccionar número perdedor aleatorio
     return losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
   }
 
-  // MÉTODO PRIVADO: Obtener números válidos para una apuesta
+  // MÉTODO: Obtener números válidos para una apuesta
   _getValidNumbersForBet(bet) {
     const validNumbers = [];
 
@@ -302,7 +366,7 @@ class RouletteEngine {
     return validNumbers;
   }
 
-  // MÉTODO PRIVADO: Encontrar número con mínima ganancia
+  // MÉTODO: Encontrar número con mínima ganancia
   _findMinimumWinNumber() {
     let minWinnings = Infinity;
     let bestNumber = null;
@@ -318,7 +382,7 @@ class RouletteEngine {
     return bestNumber || this._generateRandomNumber();
   }
 
-  // MÉTODO PRIVADO: Calcular ganancias potenciales
+  // MÉTODO: Calcular ganancias potenciales
   _calculatePotentialWinnings(numberData) {
     let totalWinnings = 0;
 
@@ -331,7 +395,7 @@ class RouletteEngine {
     return totalWinnings;
   }
 
-  // MÉTODO PRIVADO: Generar número aleatorio
+  // MÉTODO: Generar número aleatorio
   _generateRandomNumber() {
     const randomIndex = Math.floor(
       Math.random() * ROULETTE_DATA.numbers.length,
@@ -345,7 +409,6 @@ class RouletteEngine {
 
     if (!config.enabled) return;
 
-    // Si el balance supera el límite absoluto, corregirlo inmediatamente
     if (this.balance > config.absoluteMaxBalance) {
       this.balance = config.absoluteMaxBalance;
       console.log(
@@ -353,14 +416,13 @@ class RouletteEngine {
       );
     }
 
-    // Si el balance está muy cerca del límite, preparar para pérdidas
     if (this.balance >= config.absoluteMaxBalance - 5000) {
       this.consecutiveWins = 0;
       this.consecutiveLosses = 0;
     }
   }
 
-  // MÉTODO MODIFICADO: Calcular ganancias SIN bonificaciones
+  // MÉTODO: Calcular ganancias SIN bonificaciones en valores
   calculateWinnings(winningNumber) {
     let totalWinnings = 0;
     let winningBets = [];
@@ -372,10 +434,10 @@ class RouletteEngine {
       const isWinning = this.checkWinningBet(bet, winningNumber);
 
       if (isWinning) {
-        // SIMPLIFICADO: Ganancia normal sin multiplicadores
+        // Ganancia normal según las reglas estándar
         let winAmount = bet.amount * (bet.payout + 1);
 
-        // ÚNICO CONTROL: Verificar que no exceda el límite absoluto
+        // Verificar que no exceda el límite absoluto
         const potentialBalance = this.balance + winAmount;
         if (potentialBalance > config.absoluteMaxBalance) {
           winAmount = config.absoluteMaxBalance - this.balance;
@@ -407,7 +469,9 @@ class RouletteEngine {
 
     this.balance += totalWinnings;
 
-    // Validar balance después de aplicar ganancias
+    // Actualizar estadísticas de progreso
+    this._updateProgressStats();
+
     this._validateAndCorrectBalance();
 
     const totalBetAmount = Array.from(this.currentBets.values()).reduce(
@@ -425,6 +489,19 @@ class RouletteEngine {
       losingBets,
       netProfit: totalWinnings - totalBetAmount,
     };
+  }
+
+  // MÉTODO: Actualizar estadísticas de progreso
+  _updateProgressStats() {
+    if (this.balance >= 90000) {
+      this.progressStats.timesNear90k++;
+    }
+    if (this.balance >= 95000) {
+      this.progressStats.timesReached95k++;
+    }
+    if (this.balance >= 100000) {
+      this.progressStats.timesReached100k++;
+    }
   }
 
   // Resto de métodos existentes...
@@ -1034,7 +1111,6 @@ class GameController {
 // INICIALIZACIÓN
 // =============================
 
-// Estilos para notificaciones
 const style = document.createElement("style");
 style.textContent = `
   @keyframes slideIn {
@@ -1053,7 +1129,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Inicializar el juego
 document.addEventListener("DOMContentLoaded", () => {
   window.gameController = new GameController();
 });
