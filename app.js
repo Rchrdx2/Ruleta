@@ -1,13 +1,21 @@
 /**
- * JUEGO DE RULETA EUROPEA - ARQUITECTURA MODULAR
- * Implementación con control específico para apuestas únicas de números
- * Solo apuestas únicas de 3k/5k COP a números pierden protección
+ * JUEGO DE RULETA EUROPEA - ARQUITECTURA MODULAR AVANZADA
+ * ========================================================
+ *
+ * Implementación con sistema de probabilidades dinámicas:
+ * - Control específico para apuestas únicas de números
+ * - Sistema de rangos dinámicos (balance < 40k)
+ * - Control de rachas (balance > 40k)
+ * - Probabilidades dinámicas según balance
+ * - Sistema de normalización después de 20 tiradas
+ * - Control anti-estrategia de múltiples números rectos
+ * - ✅ NUEVO: Console logs informativos para desarrolladores
+ * - Modal de bloqueo al alcanzar límite de 100k COP
  */
 
 // =============================
 // DATOS DE CONFIGURACIÓN
 // =============================
-
 const ROULETTE_DATA = {
   numbers: [
     { number: 0, color: "green" },
@@ -48,8 +56,9 @@ const ROULETTE_DATA = {
     { number: 3, color: "red" },
     { number: 26, color: "black" },
   ],
+
   betTypes: {
-    straight: { name: "Número", payout: 20 }, // Pago reducido de 35 a 20
+    straight: { name: "Número", payout: 20 },
     red: { name: "Rojo", payout: 1 },
     black: { name: "Negro", payout: 1 },
     odd: { name: "Impar", payout: 1 },
@@ -63,7 +72,9 @@ const ROULETTE_DATA = {
     column2: { name: "2ª Columna", payout: 2 },
     column3: { name: "3ª Columna", payout: 2 },
   },
+
   chipValues: [1000, 3000, 5000],
+
   config: {
     initialBalance: 50000,
     minBet: 1000,
@@ -71,16 +82,73 @@ const ROULETTE_DATA = {
     spinDuration: 4000,
     currency: "COP",
     exchangeRate: 1,
-    // SISTEMA DE CONTROL CON RESTRICCIONES ESPECÍFICAS
+
     balanceControl: {
       enabled: true,
-      minBalance: 40000, // Forzar victorias bajo este límite
-      maxBalance: 97000, // Forzar pérdidas sobre este límite
-      absoluteMaxBalance: 100000, // LÍMITE ABSOLUTO - NUNCA SUPERAR
-      transitionZone: 5000, // Zona de transición gradual
-      naturalProbability: 0.3, // Probabilidad base de resultado natural
-      finalPushZone: 15000, // Zona de impulso final
-      luckStreakEnabled: true, // Activar rachas de suerte
+      minBalance: 40000,
+      maxBalance: 97000,
+      absoluteMaxBalance: 100000,
+      transitionZone: 5000,
+      naturalProbability: 0.3,
+      finalPushZone: 15000,
+      luckStreakEnabled: true,
+    },
+
+    // Sistema de probabilidades dinámicas
+    probabilityControl: {
+      enabled: true,
+
+      // Rangos de ayuda (balance < 40k)
+      helpRanges: {
+        35000: { winChance: 0.55, description: "Ayuda ligera" },
+        30000: { winChance: 0.6, description: "Ayuda moderada" },
+        25000: { winChance: 0.65, description: "Ayuda notable" },
+        20000: { winChance: 0.7, description: "Ayuda considerable" },
+        15000: { winChance: 0.75, description: "Ayuda fuerte" },
+        10000: { winChance: 0.8, description: "Ayuda muy fuerte" },
+        5000: { winChance: 0.85, description: "Ayuda máxima" },
+      },
+
+      // Control de rachas (balance > 40k)
+      streakControl: {
+        maxConsecutiveWins: 3,
+        forceNextLoss: false,
+      },
+
+      // Probabilidades dinámicas (balance > 40k)
+      dynamicProbabilities: {
+        90000: {
+          lossChance: 0.75,
+          description: "Balance muy alto - 75% pérdida",
+        },
+        80000: { lossChance: 0.65, description: "Balance alto - 65% pérdida" },
+        70000: {
+          lossChance: 0.55,
+          description: "Balance medio-alto - 55% pérdida",
+        },
+        60000: { lossChance: 0.45, description: "Balance medio - 45% pérdida" },
+        50000: { lossChance: 0.35, description: "Balance bajo - 35% pérdida" },
+        40000: {
+          lossChance: 0.25,
+          description: "Balance mínimo - 25% pérdida",
+        },
+      },
+
+      // Sistema de normalización
+      normalization: {
+        spinThreshold: 20,
+        enabled: true,
+        resetProbabilities: true,
+      },
+
+      // Control anti-estrategia de múltiples números rectos
+      multiStraightControl: {
+        enabled: true,
+        minStraightBets: 4,
+        minTotalAmount: 3000,
+        forceLossProbability: 0.85,
+        description: "Control anti-estrategia múltiples números",
+      },
     },
   },
 };
@@ -88,7 +156,6 @@ const ROULETTE_DATA = {
 // =============================
 // MOTOR DE JUEGO - ROULETTE ENGINE
 // =============================
-
 class RouletteEngine {
   constructor() {
     this.balance = ROULETTE_DATA.config.initialBalance;
@@ -100,143 +167,460 @@ class RouletteEngine {
       totalWins: 0,
       totalProfit: 0,
     };
-    // Variables internas para el control invisible
+
+    // Variables del sistema original
     this.consecutiveLosses = 0;
     this.consecutiveWins = 0;
     this.lastControlAction = null;
-
-    // VARIABLES PARA CONTROL DE PROBABILIDADES
-    this.luckStreak = 0; // Contador de racha de suerte
+    this.luckStreak = 0;
     this.progressStats = {
-      // Estadísticas de progreso
       timesNear90k: 0,
       timesReached95k: 0,
       timesReached100k: 0,
     };
+
+    // Variables para sistema de probabilidades dinámicas
+    this.totalSpins = 0;
+    this.systemNormalized = false;
+    this.forceNextLoss = false;
+    this.consecutiveWinsStreak = 0;
   }
 
-  // MÉTODO MODIFICADO: Verificar apuestas únicas de números con montos específicos
+  // =============================
+  // SISTEMA DE PROBABILIDADES DINÁMICAS
+  // =============================
+
+  _calculateWinProbability() {
+    const config = ROULETTE_DATA.config.probabilityControl;
+
+    if (!config.enabled) {
+      return this._getNaturalWinProbability();
+    }
+
+    if (this.systemNormalized) {
+      return this._getNaturalWinProbability();
+    }
+
+    if (this.balance < ROULETTE_DATA.config.balanceControl.minBalance) {
+      const helpRanges = config.helpRanges;
+      const rangeKeys = Object.keys(helpRanges)
+        .map(Number)
+        .sort((a, b) => b - a);
+
+      for (const threshold of rangeKeys) {
+        if (this.balance >= threshold) {
+          return helpRanges[threshold].winChance;
+        }
+      }
+
+      const lowestRange = Math.min(...rangeKeys);
+      return helpRanges[lowestRange].winChance;
+    }
+
+    if (this.forceNextLoss) {
+      return 0.1;
+    }
+
+    const dynamicProbs = config.dynamicProbabilities;
+    const probKeys = Object.keys(dynamicProbs)
+      .map(Number)
+      .sort((a, b) => b - a);
+
+    for (const threshold of probKeys) {
+      if (this.balance >= threshold) {
+        return 1 - dynamicProbs[threshold].lossChance;
+      }
+    }
+
+    return this._getNaturalWinProbability();
+  }
+
+  _getNaturalWinProbability() {
+    if (this.currentBets.size === 0) return 0;
+
+    let totalWinningNumbers = 0;
+    let totalPossibleOutcomes = 37;
+
+    this.currentBets.forEach((bet) => {
+      switch (bet.type) {
+        case "straight":
+          totalWinningNumbers += 1;
+          break;
+        case "red":
+        case "black":
+          totalWinningNumbers += 18;
+          break;
+        case "odd":
+        case "even":
+          totalWinningNumbers += 18;
+          break;
+        case "low":
+        case "high":
+          totalWinningNumbers += 18;
+          break;
+        case "dozen1":
+        case "dozen2":
+        case "dozen3":
+          totalWinningNumbers += 12;
+          break;
+        case "column1":
+        case "column2":
+        case "column3":
+          totalWinningNumbers += 12;
+          break;
+      }
+    });
+
+    const averageWinChance = Math.min(
+      totalWinningNumbers / totalPossibleOutcomes,
+      1,
+    );
+    return averageWinChance;
+  }
+
+  _handleStreakControl(won) {
+    const config = ROULETTE_DATA.config.probabilityControl.streakControl;
+
+    if (this.balance >= ROULETTE_DATA.config.balanceControl.minBalance) {
+      if (won) {
+        this.consecutiveWinsStreak++;
+        if (this.consecutiveWinsStreak >= config.maxConsecutiveWins) {
+          this.forceNextLoss = true;
+          this.consecutiveWinsStreak = 0;
+        }
+      } else {
+        this.consecutiveWinsStreak = 0;
+        this.forceNextLoss = false;
+      }
+    } else {
+      this.consecutiveWinsStreak = 0;
+      this.forceNextLoss = false;
+    }
+  }
+
+  /**
+   * ✅ ACTUALIZADO: Sistema de normalización con logging
+   */
+  _checkNormalization() {
+    const config = ROULETTE_DATA.config.probabilityControl.normalization;
+
+    if (
+      config.enabled &&
+      this.totalSpins >= config.spinThreshold &&
+      !this.systemNormalized
+    ) {
+      this.systemNormalized = true;
+
+      console.log(`🔄 [DEV] SISTEMA NORMALIZADO:`, {
+        totalSpins: this.totalSpins,
+        threshold: config.spinThreshold,
+        previouslyActive: "Probabilidades dinámicas",
+        nowActive: "Solo controles básicos",
+        balance: this.balance,
+      });
+    }
+  }
+
+  _incrementSpinCounter() {
+    this.totalSpins++;
+    this._checkNormalization();
+  }
+
+  _isMultipleStraightBetStrategy() {
+    const config = ROULETTE_DATA.config.probabilityControl.multiStraightControl;
+
+    if (!config.enabled) return false;
+    if (this.currentBets.size < config.minStraightBets) return false;
+
+    let straightBetsCount = 0;
+    let totalStraightAmount = 0;
+
+    this.currentBets.forEach((bet) => {
+      if (bet.type === "straight") {
+        straightBetsCount++;
+        totalStraightAmount += bet.amount;
+      }
+    });
+
+    const isMostlyStraight = straightBetsCount / this.currentBets.size >= 0.8;
+    const isSignificantAmount = totalStraightAmount >= config.minTotalAmount;
+    const hasMinimumStraights = straightBetsCount >= config.minStraightBets;
+
+    return isMostlyStraight && isSignificantAmount && hasMinimumStraights;
+  }
+
+  /**
+   * ✅ ACTUALIZADO: Estado del sistema con logging automático
+   */
+  getSystemStatus() {
+    const status = {
+      totalSpins: this.totalSpins,
+      systemNormalized: this.systemNormalized,
+      probabilitiesActive:
+        ROULETTE_DATA.config.probabilityControl.enabled &&
+        !this.systemNormalized,
+      helpSystemActive:
+        this.balance < ROULETTE_DATA.config.balanceControl.minBalance,
+      streakControlActive:
+        this.balance >= ROULETTE_DATA.config.balanceControl.minBalance,
+      consecutiveWinsStreak: this.consecutiveWinsStreak,
+      forceNextLoss: this.forceNextLoss,
+      multiStraightDetected: this._isMultipleStraightBetStrategy(),
+      spinsUntilNormalization: Math.max(
+        0,
+        ROULETTE_DATA.config.probabilityControl.normalization.spinThreshold -
+          this.totalSpins,
+      ),
+    };
+
+    // ✅ NUEVO: Log automático cada 5 tiradas
+    if (this.totalSpins % 5 === 0) {
+      console.log(
+        `📊 [DEV] Estado del Sistema (Tirada ${this.totalSpins}):`,
+        status,
+      );
+    }
+
+    return status;
+  }
+
+  // =============================
+  // SISTEMA DE CONTROL ACTUALIZADO CON LOGGING
+  // =============================
+
+  /**
+   * ✅ ACTUALIZADO: Control con logging detallado para desarrolladores
+   */
+  _getControlAction() {
+    const config = ROULETTE_DATA.config.balanceControl;
+    const probConfig = ROULETTE_DATA.config.probabilityControl;
+
+    if (!config.enabled) return null;
+
+    this._checkNormalization();
+
+    // ✅ NUEVO: Log para múltiples números rectos
+    if (this._isMultipleStraightBetStrategy()) {
+      const multiConfig = probConfig.multiStraightControl;
+      const shouldLose = Math.random() < multiConfig.forceLossProbability;
+
+      console.log(`🎯 [DEV] Control Anti-Estrategia Detectado:`, {
+        straightBets: Array.from(this.currentBets.values()).filter(
+          (bet) => bet.type === "straight",
+        ).length,
+        totalAmount: Array.from(this.currentBets.values()).reduce(
+          (sum, bet) => (bet.type === "straight" ? sum + bet.amount : sum),
+          0,
+        ),
+        forceLossProbability: multiConfig.forceLossProbability,
+        willForceLoss: shouldLose,
+        balance: this.balance,
+      });
+
+      return shouldLose ? "force_lose_hard" : null;
+    }
+
+    // ✅ NUEVO: Log para apuestas únicas restringidas
+    if (this._isSingleNumberBetRestricted()) {
+      console.log(`🚫 [DEV] Apuesta Única Restringida - No se aplica control`, {
+        bet: Array.from(this.currentBets.values())[0],
+        balance: this.balance,
+      });
+      return null;
+    }
+
+    // ✅ NUEVO: Log para sistema de probabilidades
+    if (probConfig.enabled && !this.systemNormalized) {
+      const targetWinProbability = this._calculateWinProbability();
+      const naturalWinProbability = this._getNaturalWinProbability();
+      const shouldWin = Math.random() < targetWinProbability;
+      const naturallyWins = Math.random() < naturalWinProbability;
+
+      console.log(`🎲 [DEV] Sistema Probabilidades:`, {
+        balance: this.balance,
+        targetWinProbability: (targetWinProbability * 100).toFixed(1) + "%",
+        naturalWinProbability: (naturalWinProbability * 100).toFixed(1) + "%",
+        shouldWin,
+        naturallyWins,
+        systemNormalized: this.systemNormalized,
+        totalSpins: this.totalSpins,
+      });
+
+      if (shouldWin && !naturallyWins) {
+        console.log(`✅ [DEV] Forzando VICTORIA - Sistema de ayuda activo`);
+        return "force_win";
+      } else if (!shouldWin && naturallyWins) {
+        console.log(`❌ [DEV] Forzando PÉRDIDA - Control de balance activo`);
+        return "force_lose";
+      }
+    }
+
+    // ✅ NUEVO: Log para sistema original
+    if (this.luckStreak > 0) {
+      console.log(`🍀 [DEV] Racha de Suerte Activa:`, {
+        luckStreakRemaining: this.luckStreak,
+        balance: this.balance,
+      });
+      this.luckStreak--;
+      return "favor_win";
+    }
+
+    if (this._shouldTriggerLuckStreak()) {
+      console.log(`🎰 [DEV] Activando Racha de Suerte:`, {
+        balance: this.balance,
+        progress: ((this.balance / 100000) * 100).toFixed(1) + "%",
+      });
+      this.luckStreak = 4;
+      return "luck_streak";
+    }
+
+    // Log para límite cerca de 100k
+    if (this.balance >= config.absoluteMaxBalance - 10000) {
+      console.log(`⚠️ [DEV] Cerca del Límite Máximo - Forzando pérdida`, {
+        balance: this.balance,
+        limit: config.absoluteMaxBalance,
+        remaining: config.absoluteMaxBalance - this.balance,
+      });
+      return "force_lose_hard";
+    }
+
+    // Logs para otros rangos de control
+    if (this.balance >= 75000 && this.balance < 95000) {
+      const finalPush = (this.balance - 75000) / 20000;
+      const winProbability = 0.5 + finalPush * 0.3;
+      if (Math.random() < winProbability) {
+        console.log(`📈 [DEV] Final Push Activo (75k-95k):`, {
+          balance: this.balance,
+          winProbability: (winProbability * 100).toFixed(1) + "%",
+        });
+        return "favor_win";
+      }
+    }
+
+    if (this.balance >= 60000 && this.balance < 75000) {
+      const growthBoost = (this.balance - 60000) / 15000;
+      const winProbability = 0.45 + growthBoost * 0.25;
+      if (Math.random() < winProbability) {
+        console.log(`🚀 [DEV] Growth Boost Activo (60k-75k):`, {
+          balance: this.balance,
+          winProbability: (winProbability * 100).toFixed(1) + "%",
+        });
+        return "favor_win";
+      }
+    }
+
+    if (this.balance <= config.minBalance) {
+      console.log(`🆘 [DEV] Balance Mínimo - Forzando Victoria:`, {
+        balance: this.balance,
+        minBalance: config.minBalance,
+      });
+      return "force_win";
+    }
+
+    if (this.balance >= config.maxBalance) {
+      console.log(`⛔ [DEV] Balance Máximo - Forzando Pérdida:`, {
+        balance: this.balance,
+        maxBalance: config.maxBalance,
+      });
+      return "force_lose";
+    }
+
+    return null;
+  }
+
+  // =============================
+  // MÉTODOS ORIGINALES MANTENIDOS
+  // =============================
+
+  _showLimitModal() {
+    console.log(`🏁 [DEV] LÍMITE MÁXIMO ALCANZADO - Mostrando Modal:`, {
+      balance: this.balance,
+      limit: ROULETTE_DATA.config.balanceControl.absoluteMaxBalance,
+      totalSpins: this.totalSpins,
+      statistics: this.statistics,
+    });
+
+    const modal = document.getElementById("limitModal");
+    const gameContainer = document.querySelector(".container");
+
+    modal.classList.add("show");
+    gameContainer.classList.add("game-blocked");
+
+    const restartBtn = document.getElementById("restartGame");
+    restartBtn.onclick = () => this._restartGame();
+  }
+
+  _restartGame() {
+    console.log(`🔄 [DEV] REINICIANDO JUEGO:`, {
+      balanceAnterior: this.balance,
+      statisticasFinales: this.statistics,
+      progressStatsFinales: this.progressStats,
+    });
+
+    this.balance = ROULETTE_DATA.config.initialBalance;
+    this.currentBets.clear();
+    this.lastBets.clear();
+    this.history = [];
+    this.statistics = {
+      totalSpins: 0,
+      totalWins: 0,
+      totalProfit: 0,
+    };
+
+    this.consecutiveLosses = 0;
+    this.consecutiveWins = 0;
+    this.lastControlAction = null;
+    this.luckStreak = 0;
+    this.progressStats = {
+      timesNear90k: 0,
+      timesReached95k: 0,
+      timesReached100k: 0,
+    };
+
+    this.totalSpins = 0;
+    this.systemNormalized = false;
+    this.forceNextLoss = false;
+    this.consecutiveWinsStreak = 0;
+
+    document.getElementById("limitModal").classList.remove("show");
+    document.querySelector(".container").classList.remove("game-blocked");
+
+    window.gameController.ui.updateBalance(this.balance);
+    window.gameController.ui.updateActiveBets([]);
+    window.gameController.ui.updateGameStats(this.statistics);
+
+    document.getElementById("historyNumbers").innerHTML = "";
+    document.querySelectorAll(".bet-chip").forEach((chip) => chip.remove());
+  }
+
   _isSingleNumberBetRestricted() {
-    // Verificar que solo haya una apuesta activa
     if (this.currentBets.size !== 1) {
       return false;
     }
 
     const bet = Array.from(this.currentBets.values())[0];
-
-    // Solo aplicar restricción para apuestas a números específicos de 3k o 5k COP
     return (
       bet.type === "straight" && (bet.amount === 3000 || bet.amount === 5000)
     );
   }
 
-  // MÉTODO: Determinar si activar racha de suerte
   _shouldTriggerLuckStreak() {
     const progress = this.balance / 100000;
-
     if (progress >= 0.6 && progress < 0.9) {
-      return Math.random() < 0.35; // 35% chance de racha
+      return Math.random() < 0.35;
     }
-
     return false;
   }
 
-  // MÉTODO: Helper para seleccionar de opciones
   _selectFromOptions(options) {
     if (!options.length) return null;
     const idx = Math.floor(Math.random() * options.length);
     return options[idx];
   }
 
-  // MÉTODO PRINCIPAL MODIFICADO: Control con restricciones específicas
-  _getControlAction() {
-    const config = ROULETTE_DATA.config.balanceControl;
-
-    if (!config.enabled) return null;
-
-    // NUEVA LÓGICA: Control específico para apuestas únicas de números 3k/5k
-    if (this._isSingleNumberBetRestricted()) {
-      // Sin protección para fichas únicas de 3k/5k COP a números
-      return null; // Resultado completamente aleatorio
-    }
-
-    // RESTO DE LÓGICA: Protección activa para todos los demás casos
-
-    // Control de rachas de suerte
-    if (this.luckStreak > 0) {
-      this.luckStreak--;
-      return "favor_win";
-    }
-
-    // Activar racha de suerte
-    if (this._shouldTriggerLuckStreak()) {
-      this.luckStreak = 4;
-      return "luck_streak";
-    }
-
-    // Control absoluto cerca del límite máximo
-    if (this.balance >= config.absoluteMaxBalance - 10000) {
-      return "force_lose_hard";
-    }
-
-    // Zona de impulso final mejorada (75k-95k)
-    if (this.balance >= 75000 && this.balance < 95000) {
-      const finalPush = (this.balance - 75000) / 20000;
-      const winProbability = 0.5 + finalPush * 0.3;
-      if (Math.random() < winProbability) return "favor_win";
-    }
-
-    // Zona de crecimiento acelerado (60k-75k)
-    if (this.balance >= 60000 && this.balance < 75000) {
-      const growthBoost = (this.balance - 60000) / 15000;
-      const winProbability = 0.45 + growthBoost * 0.25;
-      if (Math.random() < winProbability) return "favor_win";
-    }
-
-    // Control directo en límites extremos
-    if (this.balance <= config.minBalance) {
-      return "force_win";
-    }
-
-    if (this.balance >= config.maxBalance) {
-      return "force_lose";
-    }
-
-    // Control gradual en zonas de transición
-    const lowerTransition = config.minBalance + config.transitionZone;
-    const upperTransition = config.maxBalance - config.transitionZone;
-
-    if (this.balance < lowerTransition) {
-      const intensity =
-        (lowerTransition - this.balance) / config.transitionZone;
-      const winProbability = config.naturalProbability + intensity * 0.5;
-      return Math.random() < winProbability ? "favor_win" : null;
-    }
-
-    if (this.balance > upperTransition) {
-      const intensity =
-        (this.balance - upperTransition) / config.transitionZone;
-      const lossProbability = config.naturalProbability + intensity * 0.5;
-      return Math.random() < lossProbability ? "favor_lose" : null;
-    }
-
-    // Control adaptativo basado en rachas
-    if (this.consecutiveLosses >= 3 && this.balance < config.initialBalance) {
-      return Math.random() < 0.7 ? "favor_win" : null;
-    }
-
-    if (this.consecutiveWins >= 3 && this.balance > config.initialBalance) {
-      return Math.random() < 0.35 ? "favor_lose" : null;
-    }
-
-    return null;
-  }
-
-  // MÉTODO: Spin con control invisible
   spin() {
     const controlAction = this._getControlAction();
     this.lastControlAction = controlAction;
-
     let winningNumber;
 
     if (
@@ -264,10 +648,11 @@ class RouletteEngine {
     }
 
     this.statistics.totalSpins++;
+    this._incrementSpinCounter();
+
     return winningNumber;
   }
 
-  // MÉTODO MEJORADO: Generar número ganador con mejor priorización
   _generateWinningNumber() {
     if (this.currentBets.size === 0) {
       return this._generateRandomNumber();
@@ -277,12 +662,10 @@ class RouletteEngine {
 
     this.currentBets.forEach((bet, betKey) => {
       if (bet.type === "straight") {
-        // Priorizar números específicos cuando el balance es alto
         const priority =
           this.balance > 65000
-            ? bet.payout * bet.amount * 3 // Triple prioridad
-            : bet.payout * bet.amount * 1.5; // 50% más prioridad
-
+            ? bet.payout * bet.amount * 3
+            : bet.payout * bet.amount * 1.5;
         winningOptions.push({
           number: bet.number,
           priority: priority,
@@ -304,20 +687,19 @@ class RouletteEngine {
       return this._generateRandomNumber();
     }
 
-    // Ordenar por prioridad y seleccionar más favorablemente
     winningOptions.sort((a, b) => b.priority - a.priority);
+
     const topOptions = winningOptions.slice(
       0,
       Math.ceil(winningOptions.length * 0.6),
     );
-
     const selectedOption = this._selectFromOptions(topOptions);
+
     return ROULETTE_DATA.numbers.find(
       (n) => n.number === selectedOption.number,
     );
   }
 
-  // MÉTODO: Generar número perdedor
   _generateLosingNumber() {
     const config = ROULETTE_DATA.config.balanceControl;
 
@@ -325,12 +707,10 @@ class RouletteEngine {
       return this._generateRandomNumber();
     }
 
-    const isNearLimit = this.balance >= config.absoluteMaxBalance - 10000;
     const losingNumbers = [];
 
     ROULETTE_DATA.numbers.forEach((numberData) => {
       let isWinning = false;
-
       this.currentBets.forEach((bet) => {
         if (this.checkWinningBet(bet, numberData)) {
           isWinning = true;
@@ -346,14 +726,9 @@ class RouletteEngine {
       return this._findMinimumWinNumber();
     }
 
-    if (isNearLimit) {
-      return losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
-    }
-
     return losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
   }
 
-  // MÉTODO: Obtener números válidos para una apuesta
   _getValidNumbersForBet(bet) {
     const validNumbers = [];
 
@@ -366,7 +741,6 @@ class RouletteEngine {
     return validNumbers;
   }
 
-  // MÉTODO: Encontrar número con mínima ganancia
   _findMinimumWinNumber() {
     let minWinnings = Infinity;
     let bestNumber = null;
@@ -382,7 +756,6 @@ class RouletteEngine {
     return bestNumber || this._generateRandomNumber();
   }
 
-  // MÉTODO: Calcular ganancias potenciales
   _calculatePotentialWinnings(numberData) {
     let totalWinnings = 0;
 
@@ -395,7 +768,6 @@ class RouletteEngine {
     return totalWinnings;
   }
 
-  // MÉTODO: Generar número aleatorio
   _generateRandomNumber() {
     const randomIndex = Math.floor(
       Math.random() * ROULETTE_DATA.numbers.length,
@@ -403,17 +775,15 @@ class RouletteEngine {
     return ROULETTE_DATA.numbers[randomIndex];
   }
 
-  // MÉTODO: Validar y corregir balance si excede límites
   _validateAndCorrectBalance() {
     const config = ROULETTE_DATA.config.balanceControl;
-
     if (!config.enabled) return;
 
-    if (this.balance > config.absoluteMaxBalance) {
+    if (this.balance >= config.absoluteMaxBalance) {
       this.balance = config.absoluteMaxBalance;
-      console.log(
-        `Balance corregido a límite máximo: ${config.absoluteMaxBalance}`,
-      );
+      setTimeout(() => {
+        this._showLimitModal();
+      }, 1000);
     }
 
     if (this.balance >= config.absoluteMaxBalance - 5000) {
@@ -422,25 +792,38 @@ class RouletteEngine {
     }
   }
 
-  // MÉTODO: Calcular ganancias SIN bonificaciones en valores
+  /**
+   * ✅ ACTUALIZADO: Calcular ganancias con logging detallado
+   */
   calculateWinnings(winningNumber) {
     let totalWinnings = 0;
     let winningBets = [];
     let losingBets = [];
-
     const config = ROULETTE_DATA.config.balanceControl;
+
+    // ✅ NUEVO: Log del resultado de la tirada
+    console.log(`🎰 [DEV] Resultado de Tirada:`, {
+      winningNumber: winningNumber.number,
+      color: winningNumber.color,
+      currentBets: this.currentBets.size,
+      balanceBefore: this.balance,
+      controlAction: this.lastControlAction,
+    });
 
     this.currentBets.forEach((bet, betKey) => {
       const isWinning = this.checkWinningBet(bet, winningNumber);
 
       if (isWinning) {
-        // Ganancia normal según las reglas estándar
         let winAmount = bet.amount * (bet.payout + 1);
-
-        // Verificar que no exceda el límite absoluto
         const potentialBalance = this.balance + winAmount;
+
         if (potentialBalance > config.absoluteMaxBalance) {
           winAmount = config.absoluteMaxBalance - this.balance;
+          console.log(`💰 [DEV] Ganancia Limitada:`, {
+            originalWin: bet.amount * (bet.payout + 1),
+            limitedWin: winAmount,
+            reason: "Límite máximo de balance",
+          });
         }
 
         totalWinnings += winAmount;
@@ -457,21 +840,44 @@ class RouletteEngine {
       }
     });
 
-    // Actualizar contadores de racha
-    if (totalWinnings > 0) {
+    const hasWon = totalWinnings > 0;
+
+    // ✅ NUEVO: Log de estadísticas de racha
+    if (hasWon) {
       this.consecutiveWins++;
       this.consecutiveLosses = 0;
       this.statistics.totalWins++;
+      console.log(`🎉 [DEV] VICTORIA:`, {
+        totalWinnings,
+        winningBets: winningBets.length,
+        consecutiveWins: this.consecutiveWinsStreak,
+        newBalance: this.balance + totalWinnings,
+      });
     } else {
       this.consecutiveLosses++;
       this.consecutiveWins = 0;
+      console.log(`💸 [DEV] PÉRDIDA:`, {
+        lostAmount: Array.from(this.currentBets.values()).reduce(
+          (sum, bet) => sum + bet.amount,
+          0,
+        ),
+        consecutiveWinsReset: true,
+        newBalance: this.balance,
+      });
+    }
+
+    this._handleStreakControl(hasWon);
+
+    // ✅ NUEVO: Log de control de rachas
+    if (this.forceNextLoss) {
+      console.log(`🔄 [DEV] Control de Rachas - Próxima pérdida forzada`, {
+        consecutiveWinsStreak: this.consecutiveWinsStreak,
+        balance: this.balance,
+      });
     }
 
     this.balance += totalWinnings;
-
-    // Actualizar estadísticas de progreso
     this._updateProgressStats();
-
     this._validateAndCorrectBalance();
 
     const totalBetAmount = Array.from(this.currentBets.values()).reduce(
@@ -480,6 +886,7 @@ class RouletteEngine {
     );
 
     this.statistics.totalProfit += totalWinnings - totalBetAmount;
+
     this.lastBets = new Map(this.currentBets);
     this.currentBets.clear();
 
@@ -491,7 +898,6 @@ class RouletteEngine {
     };
   }
 
-  // MÉTODO: Actualizar estadísticas de progreso
   _updateProgressStats() {
     if (this.balance >= 90000) {
       this.progressStats.timesNear90k++;
@@ -504,7 +910,6 @@ class RouletteEngine {
     }
   }
 
-  // Resto de métodos existentes...
   placeBet(betType, amount, number = null) {
     if (this.balance < amount) {
       console.warn("Balance insuficiente para esta apuesta");
@@ -669,7 +1074,6 @@ class RouletteEngine {
 // =============================
 // SISTEMA DE ANIMACIÓN - ROULETTE WHEEL
 // =============================
-
 class RouletteWheel {
   constructor() {
     this.wheelElement = document.getElementById("rouletteWheel");
@@ -687,10 +1091,10 @@ class RouletteWheel {
       const numberIndex = ROULETTE_DATA.numbers.findIndex(
         (n) => n.number === winningNumber.number,
       );
-
       const degreesPerNumber = 360 / ROULETTE_DATA.numbers.length;
       const targetRotation =
         numberIndex * degreesPerNumber + Math.random() * degreesPerNumber;
+
       const totalRotation = this.currentRotation + 1800 + targetRotation;
 
       this.wheelElement.style.transform = `rotate(${totalRotation}deg)`;
@@ -713,12 +1117,12 @@ class RouletteWheel {
     const animateBallStep = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      const easeOut = 1 - Math.pow(1 - progress, 3);
 
+      const easeOut = 1 - Math.pow(1 - progress, 3);
       const currentRadius =
         initialRadius - (initialRadius - finalRadius) * easeOut;
-      const angle = ((progress * 720 + finalPosition) * Math.PI) / 180;
 
+      const angle = ((progress * 720 + finalPosition) * Math.PI) / 180;
       const x = Math.cos(angle) * currentRadius;
       const y = Math.sin(angle) * currentRadius;
 
@@ -740,7 +1144,6 @@ class RouletteWheel {
 // =============================
 // INTERFAZ DE USUARIO - ROULETTE UI
 // =============================
-
 class RouletteUI {
   constructor() {
     this.selectedChipValue = 1000;
@@ -803,9 +1206,11 @@ class RouletteUI {
       cell.className = `number-cell ${numberData.color}`;
       cell.textContent = i;
       cell.dataset.number = i;
+
       cell.addEventListener("click", () => {
         this.placeBet("straight", i);
       });
+
       numbersGrid.appendChild(cell);
     }
 
@@ -825,26 +1230,28 @@ class RouletteUI {
     });
 
     document.querySelector(`[data-value="${value}"]`).classList.add("selected");
-    this.elements.selectedChip.textContent = `$${value.toLocaleString("es-CO")} COP`;
+
+    this.elements.selectedChip.textContent = `$${value.toLocaleString(
+      "es-CO",
+    )} COP`;
   }
 
   showNotification(message, type = "warning") {
     const notification = document.createElement("div");
     notification.className = `notification notification--${type}`;
     notification.textContent = message;
-
     notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background-color: ${type === "warning" ? "#f59e0b" : "#ef4444"};
-      color: white;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-weight: 500;
-      z-index: 1001;
-      animation: slideIn 0.3s ease-out;
-    `;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: ${type === "warning" ? "#f59e0b" : "#ef4444"};
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 1001;
+            animation: slideIn 0.3s ease-out;
+        `;
 
     document.body.appendChild(notification);
 
@@ -880,12 +1287,16 @@ class RouletteUI {
       } else if (wouldExceedTotal) {
         const remaining = ROULETTE_DATA.config.maxBet - currentTotal;
         this.showNotification(
-          `Total máximo de apuestas: $${ROULETTE_DATA.config.maxBet.toLocaleString("es-CO")} COP. Disponible: $${remaining.toLocaleString("es-CO")} COP`,
+          `Total máximo de apuestas: $${ROULETTE_DATA.config.maxBet.toLocaleString(
+            "es-CO",
+          )} COP. Disponible: $${remaining.toLocaleString("es-CO")} COP`,
           "warning",
         );
       } else if (this.selectedChipValue > ROULETTE_DATA.config.maxBet) {
         this.showNotification(
-          `Apuesta máxima permitida: $${ROULETTE_DATA.config.maxBet.toLocaleString("es-CO")} COP`,
+          `Apuesta máxima permitida: $${ROULETTE_DATA.config.maxBet.toLocaleString(
+            "es-CO",
+          )} COP`,
           "warning",
         );
       } else {
@@ -926,14 +1337,16 @@ class RouletteUI {
   }
 
   updateBalance(balance) {
-    this.elements.balance.textContent = `$${balance.toLocaleString("es-CO")} COP`;
+    this.elements.balance.textContent = `$${balance.toLocaleString(
+      "es-CO",
+    )} COP`;
   }
 
   updateActiveBets(bets) {
     const container = this.elements.activeBets;
 
     if (bets.length === 0) {
-      container.innerHTML = '<p class="no-bets">No hay apuestas activas</p>';
+      container.innerHTML = "<p>No hay apuestas activas</p>";
       this.elements.totalBet.textContent = "$0 COP";
       return;
     }
@@ -948,34 +1361,40 @@ class RouletteUI {
           : ROULETTE_DATA.betTypes[bet.type].name;
 
       html += `
-        <div class="bet-item">
-          <span>${betName}</span>
-          <span>$${bet.amount.toLocaleString("es-CO")} COP</span>
-        </div>
-      `;
+                <div class="active-bet">
+                    <span class="bet-name">${betName}</span>
+                    <span class="bet-amount">$${bet.amount.toLocaleString(
+                      "es-CO",
+                    )} COP</span>
+                </div>
+            `;
       totalAmount += bet.amount;
     });
 
     container.innerHTML = html;
-    this.elements.totalBet.innerHTML = `<strong>$${totalAmount.toLocaleString("es-CO")} COP</strong>`;
+    this.elements.totalBet.textContent = `$${totalAmount.toLocaleString(
+      "es-CO",
+    )} COP`;
   }
 
-  updateHistory(numbers) {
+  updateHistory(history) {
     const container = this.elements.historyNumbers;
     container.innerHTML = "";
 
-    numbers.forEach((numberData) => {
-      const element = document.createElement("div");
-      element.className = `history-number ${numberData.color}`;
-      element.textContent = numberData.number;
-      container.appendChild(element);
+    history.forEach((number) => {
+      const numberElement = document.createElement("div");
+      numberElement.className = `history-number ${number.color}`;
+      numberElement.textContent = number.number;
+      container.appendChild(numberElement);
     });
   }
 
-  updateStatistics(stats) {
+  updateGameStats(stats) {
     this.elements.totalSpins.textContent = stats.totalSpins;
     this.elements.totalWins.textContent = stats.totalWins;
-    this.elements.totalProfit.textContent = `$${stats.totalProfit.toLocaleString("es-CO")} COP`;
+    this.elements.totalProfit.textContent = `$${stats.totalProfit.toLocaleString(
+      "es-CO",
+    )} COP`;
   }
 
   showLoadingOverlay() {
@@ -986,19 +1405,29 @@ class RouletteUI {
     this.elements.loadingOverlay.classList.remove("show");
   }
 
-  showResultMessage(winningNumber, result) {
+  showResultMessage(winningNumber, result, engine) {
+    const { totalWinnings, netProfit } = result;
+
     this.elements.resultNumber.textContent = winningNumber.number;
     this.elements.resultNumber.className = `result-number ${winningNumber.color}`;
 
-    if (result.totalWinnings > 0) {
+    if (totalWinnings > 0) {
       this.elements.resultTitle.textContent = "¡Ganaste!";
-      this.elements.resultText.textContent = `Has ganado $${result.totalWinnings.toLocaleString("es-CO")} COP`;
+      this.elements.resultText.textContent = `Ganancia: $${totalWinnings.toLocaleString(
+        "es-CO",
+      )} COP`;
+      this.elements.resultMessage.className = "result-message win show";
     } else {
-      this.elements.resultTitle.textContent = "Sin suerte";
-      this.elements.resultText.textContent = "Mejor suerte la próxima vez";
+      this.elements.resultTitle.textContent = "Perdiste";
+      this.elements.resultText.textContent = `Pérdida: $${Math.abs(
+        netProfit,
+      ).toLocaleString("es-CO")} COP`;
+      this.elements.resultMessage.className = "result-message lose show";
     }
 
-    this.elements.resultMessage.classList.add("show");
+    setTimeout(() => {
+      this.hideResultMessage();
+    }, 4000);
   }
 
   hideResultMessage() {
@@ -1012,14 +1441,13 @@ class RouletteUI {
   }
 
   playSound(soundName) {
-    // Implementación de sonidos opcional
+    // Implementación opcional de sonidos
   }
 }
 
 // =============================
-// CONTROLADOR DE JUEGO - GAME CONTROLLER
+// CONTROLADOR PRINCIPAL - GAME CONTROLLER
 // =============================
-
 class GameController {
   constructor() {
     this.engine = new RouletteEngine();
@@ -1027,22 +1455,15 @@ class GameController {
     this.ui = new RouletteUI();
     this.isSpinning = false;
 
-    this.updateUI();
-  }
-
-  placeBet(betType, amount, number = null) {
-    if (this.isSpinning) return false;
-
-    const success = this.engine.placeBet(betType, amount, number);
-    if (success) {
-      this.updateUI();
-    }
-    return success;
+    // Hacer disponible para debugging
+    window.rouletteEngine = this.engine;
   }
 
   async spin() {
     if (this.isSpinning) return;
-    if (this.engine.getTotalBet() === 0) {
+
+    const activeBets = this.engine.getActiveBets();
+    if (activeBets.length === 0) {
       this.ui.showNotification(
         "Debes realizar al menos una apuesta",
         "warning",
@@ -1056,79 +1477,117 @@ class GameController {
     try {
       const winningNumber = this.engine.spin();
       await this.wheel.spin(winningNumber);
-
       const result = this.engine.calculateWinnings(winningNumber);
-
-      this.ui.hideLoadingOverlay();
-      this.ui.showResultMessage(winningNumber, result);
-      this.ui.clearBetChips();
-      this.updateUI();
+      this.updateUI(winningNumber, result);
+      this.ui.showResultMessage(winningNumber, result, this.engine);
     } catch (error) {
-      console.error("Error during spin:", error);
-      this.ui.hideLoadingOverlay();
-      this.ui.showNotification("Error durante el giro", "error");
+      console.error("Error durante el spin:", error);
+      this.ui.showNotification("Error durante el juego", "error");
     } finally {
       this.isSpinning = false;
+      this.ui.hideLoadingOverlay();
     }
+  }
+
+  placeBet(betType, amount, number = null) {
+    return this.engine.placeBet(betType, amount, number);
   }
 
   repeatLastBets() {
-    if (this.isSpinning) return false;
-
     const success = this.engine.repeatLastBets();
     if (success) {
-      this.updateUI();
-      this.ui.showNotification("Apuestas repetidas exitosamente", "success");
+      this.ui.updateBalance(this.engine.balance);
+      this.ui.updateActiveBets(this.engine.getActiveBets());
     } else {
-      if (this.engine.lastBets.size === 0) {
-        this.ui.showNotification(
-          "No hay apuestas anteriores para repetir",
-          "warning",
-        );
-      }
+      this.ui.showNotification(
+        "No se pudieron repetir las apuestas",
+        "warning",
+      );
     }
-    return success;
   }
 
   clearBets() {
-    if (this.isSpinning) return false;
-
     this.engine.clearBets();
+    this.ui.updateBalance(this.engine.balance);
+    this.ui.updateActiveBets([]);
     this.ui.clearBetChips();
-    this.updateUI();
-    this.ui.showNotification("Mesa limpiada", "success");
   }
 
-  updateUI() {
+  updateUI(winningNumber, result) {
     this.ui.updateBalance(this.engine.balance);
-    this.ui.updateActiveBets(this.engine.getActiveBets());
+    this.ui.updateActiveBets([]);
     this.ui.updateHistory(this.engine.history);
-    this.ui.updateStatistics(this.engine.statistics);
+    this.ui.updateGameStats(this.engine.statistics);
+    this.ui.clearBetChips();
   }
 }
 
 // =============================
-// INICIALIZACIÓN
+// FUNCIONES GLOBALES PARA DESARROLLADORES
 // =============================
 
-const style = document.createElement("style");
-style.textContent = `
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+/**
+ * ✅ NUEVO: Función global para desarrolladores
+ */
+window.devInfo = function () {
+  const engine = window.rouletteEngine || window.gameController?.engine;
+  if (!engine) {
+    console.error("❌ [DEV] Motor de juego no encontrado");
+    return;
   }
-  
-  @keyframes slideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-  }
-  
-  .notification--success {
-    background-color: #059669 !important;
-  }
-`;
-document.head.appendChild(style);
 
+  console.log(`📈 [DEV] Información Completa del Sistema:`, {
+    balance: engine.balance,
+    systemStatus: engine.getSystemStatus(),
+    currentBets: Array.from(engine.currentBets.entries()),
+    statistics: engine.statistics,
+    history: engine.history.slice(0, 5),
+    progressStats: engine.progressStats,
+  });
+};
+
+/**
+ * ✅ NUEVO: Función para activar/desactivar logging detallado
+ */
+window.toggleDevLogs = function (enabled = true) {
+  window.devLogsEnabled = enabled;
+  console.log(
+    `🔧 [DEV] Logging detallado ${enabled ? "ACTIVADO" : "DESACTIVADO"}`,
+  );
+};
+
+// =============================
+// INICIALIZACIÓN DEL JUEGO
+// =============================
 document.addEventListener("DOMContentLoaded", () => {
   window.gameController = new GameController();
+
+  // ✅ NUEVO: Logs de inicialización para desarrolladores
+  console.log(`🚀 [DEV] Ruleta Europea Inicializada:`, {
+    timestamp: new Date().toLocaleString(),
+    version: "Sistema de Probabilidades Dinámicas v2.0 + Logs",
+    features: [
+      "Control anti-estrategia múltiples números",
+      "Sistema de normalización (20 tiradas)",
+      "Probabilidades dinámicas por balance",
+      "Control de rachas",
+      "Modal de límite 100k COP",
+      "Console logs informativos para desarrolladores",
+    ],
+  });
+
+  console.log(`⚙️ [DEV] Configuración Activa:`, {
+    multiStraightControl:
+      ROULETTE_DATA.config.probabilityControl.multiStraightControl.enabled,
+    normalizationThreshold:
+      ROULETTE_DATA.config.probabilityControl.normalization.spinThreshold,
+    balanceControl: ROULETTE_DATA.config.balanceControl.enabled,
+    initialBalance: ROULETTE_DATA.config.initialBalance,
+  });
+
+  console.log(`🛠️ [DEV] Comandos Disponibles:`, {
+    "devInfo()": "Ver información completa del sistema",
+    "toggleDevLogs(true/false)": "Activar/desactivar logs detallados",
+    "window.rouletteEngine.getSystemStatus()": "Ver estado actual del sistema",
+  });
 });
