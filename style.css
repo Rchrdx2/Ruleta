@@ -1,21 +1,21 @@
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
 
 :root {
-  /* Colors */
-  --color-background: rgba(252, 252, 249, 1);
-  --color-surface: rgba(255, 255, 253, 1);
-  --color-text: rgba(19, 52, 59, 1);
-  --color-text-secondary: rgba(98, 108, 113, 1);
-  --color-primary: rgba(33, 128, 141, 1);
-  --color-primary-hover: rgba(29, 116, 128, 1);
-  --color-primary-active: rgba(26, 104, 115, 1);
-  --color-secondary: rgba(94, 82, 64, 0.12);
-  --color-secondary-hover: rgba(94, 82, 64, 0.2);
-  --color-secondary-active: rgba(94, 82, 64, 0.25);
-  --color-border: rgba(94, 82, 64, 0.2);
-  --color-btn-primary-text: rgba(252, 252, 249, 1);
-  --color-success: rgba(33, 128, 141, 1);
-  --color-focus-ring: rgba(33, 128, 141, 0.4);
+  /* Colors - Paleta Dorado, Negro y Rojo */
+  --color-background: rgba(20, 20, 20, 1); /* Negro profundo */
+  --color-surface: rgba(30, 30, 30, 1); /* Negro ligeramente más claro */
+  --color-text: rgba(255, 215, 0, 1); /* Dorado */
+  --color-text-secondary: rgba(255, 215, 0, 0.7); /* Dorado semitransparente */
+  --color-primary: rgba(220, 20, 60, 1); /* Rojo carmesí */
+  --color-primary-hover: rgba(200, 18, 54, 1); /* Rojo más oscuro */
+  --color-primary-active: rgba(180, 16, 48, 1); /* Rojo aún más oscuro */
+  --color-secondary: rgba(255, 215, 0, 0.12); /* Dorado semitransparente */
+  --color-secondary-hover: rgba(255, 215, 0, 0.2); /* Dorado más visible */
+  --color-secondary-active: rgba(255, 215, 0, 0.25); /* Dorado activo */
+  --color-border: rgba(255, 215, 0, 0.3); /* Bordes dorados */
+  --color-btn-primary-text: rgba(255, 255, 255, 1); /* Texto blanco en botones */
+  --color-success: rgba(255, 215, 0, 1); /* Dorado para éxito */
+  --color-focus-ring: rgba(220, 20, 60, 0.4); /* Anillo de foco rojo */
 
   /* Typography */
   --font-family-base:
@@ -67,23 +67,23 @@
   --focus-ring: 0 0 0 3px var(--color-focus-ring);
 }
 
-/* Dark mode */
+/* Dark mode - Ajustado para la nueva paleta */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: rgba(31, 33, 33, 1);
-    --color-surface: rgba(38, 40, 40, 1);
-    --color-text: rgba(245, 245, 245, 1);
-    --color-text-secondary: rgba(167, 169, 169, 0.7);
-    --color-primary: rgba(50, 184, 198, 1);
-    --color-primary-hover: rgba(45, 166, 178, 1);
-    --color-primary-active: rgba(41, 150, 161, 1);
-    --color-secondary: rgba(119, 124, 124, 0.15);
-    --color-secondary-hover: rgba(119, 124, 124, 0.25);
-    --color-secondary-active: rgba(119, 124, 124, 0.3);
-    --color-border: rgba(119, 124, 124, 0.3);
-    --color-btn-primary-text: rgba(19, 52, 59, 1);
-    --color-success: rgba(50, 184, 198, 1);
-    --color-focus-ring: rgba(50, 184, 198, 0.4);
+    --color-background: rgba(15, 15, 15, 1); /* Negro más profundo en modo oscuro */
+    --color-surface: rgba(25, 25, 25, 1); /* Negro ligeramente más claro */
+    --color-text: rgba(255, 215, 0, 1); /* Dorado brillante */
+    --color-text-secondary: rgba(255, 215, 0, 0.8); /* Dorado más visible */
+    --color-primary: rgba(220, 20, 60, 1); /* Rojo carmesí */
+    --color-primary-hover: rgba(240, 22, 66, 1); /* Rojo más brillante */
+    --color-primary-active: rgba(200, 18, 54, 1); /* Rojo activo */
+    --color-secondary: rgba(255, 215, 0, 0.15); /* Dorado más visible */
+    --color-secondary-hover: rgba(255, 215, 0, 0.25); /* Dorado hover */
+    --color-secondary-active: rgba(255, 215, 0, 0.3); /* Dorado activo */
+    --color-border: rgba(255, 215, 0, 0.4); /* Bordes dorados más visibles */
+    --color-btn-primary-text: rgba(255, 255, 255, 1); /* Texto blanco */
+    --color-success: rgba(255, 215, 0, 1); /* Dorado para éxito */
+    --color-focus-ring: rgba(220, 20, 60, 0.5); /* Anillo de foco rojo más visible */
   }
 }
 
@@ -221,7 +221,7 @@ p {
 }
 
 .game-header h1 {
-  color: var(--color-primary);
+  color: var(--color-text); /* Cambio a dorado */
   margin: 0;
 }
 
@@ -238,7 +238,7 @@ p {
 }
 
 .balance-amount {
-  color: var(--color-primary);
+  color: var(--color-text); /* Cambio a dorado */
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-2xl);
 }
@@ -274,45 +274,45 @@ p {
   border-radius: 50%;
   background: conic-gradient(
     from 0deg,
-    #c41e3a 0deg 9.73deg,
-    #2f5233 9.73deg 19.46deg,
-    #c41e3a 19.46deg 29.19deg,
-    #2f5233 29.19deg 38.92deg,
-    #c41e3a 38.92deg 48.65deg,
-    #2f5233 48.65deg 58.38deg,
-    #c41e3a 58.38deg 68.11deg,
-    #2f5233 68.11deg 77.84deg,
-    #c41e3a 77.84deg 87.57deg,
-    #2f5233 87.57deg 97.3deg,
-    #c41e3a 97.3deg 107.03deg,
-    #2f5233 107.03deg 116.76deg,
-    #c41e3a 116.76deg 126.49deg,
-    #2f5233 126.49deg 136.22deg,
-    #c41e3a 136.22deg 145.95deg,
-    #2f5233 145.95deg 155.68deg,
-    #c41e3a 155.68deg 165.41deg,
-    #2f5233 165.41deg 175.14deg,
-    #c41e3a 175.14deg 184.87deg,
-    #2f5233 184.87deg 194.6deg,
-    #c41e3a 194.6deg 204.33deg,
-    #2f5233 204.33deg 214.06deg,
-    #c41e3a 214.06deg 223.79deg,
-    #2f5233 223.79deg 233.52deg,
-    #c41e3a 233.52deg 243.25deg,
-    #2f5233 243.25deg 252.98deg,
-    #c41e3a 252.98deg 262.71deg,
-    #2f5233 262.71deg 272.44deg,
-    #c41e3a 272.44deg 282.17deg,
-    #2f5233 282.17deg 291.9deg,
-    #c41e3a 291.9deg 301.63deg,
-    #2f5233 301.63deg 311.36deg,
-    #c41e3a 311.36deg 321.09deg,
-    #2f5233 321.09deg 330.82deg,
-    #c41e3a 330.82deg 340.55deg,
-    #2f5233 340.55deg 350.28deg,
-    #228b22 350.28deg 360deg
+    #dc143c 0deg 9.73deg,
+    #000000 9.73deg 19.46deg,
+    #dc143c 19.46deg 29.19deg,
+    #000000 29.19deg 38.92deg,
+    #dc143c 38.92deg 48.65deg,
+    #000000 48.65deg 58.38deg,
+    #dc143c 58.38deg 68.11deg,
+    #000000 68.11deg 77.84deg,
+    #dc143c 77.84deg 87.57deg,
+    #000000 87.57deg 97.3deg,
+    #dc143c 97.3deg 107.03deg,
+    #000000 107.03deg 116.76deg,
+    #dc143c 116.76deg 126.49deg,
+    #000000 126.49deg 136.22deg,
+    #dc143c 136.22deg 145.95deg,
+    #000000 145.95deg 155.68deg,
+    #dc143c 155.68deg 165.41deg,
+    #000000 165.41deg 175.14deg,
+    #dc143c 175.14deg 184.87deg,
+    #000000 184.87deg 194.6deg,
+    #dc143c 194.6deg 204.33deg,
+    #000000 204.33deg 214.06deg,
+    #dc143c 214.06deg 223.79deg,
+    #000000 223.79deg 233.52deg,
+    #dc143c 233.52deg 243.25deg,
+    #000000 243.25deg 252.98deg,
+    #dc143c 252.98deg 262.71deg,
+    #000000 262.71deg 272.44deg,
+    #dc143c 272.44deg 282.17deg,
+    #000000 282.17deg 291.9deg,
+    #dc143c 291.9deg 301.63deg,
+    #000000 301.63deg 311.36deg,
+    #dc143c 311.36deg 321.09deg,
+    #000000 321.09deg 330.82deg,
+    #dc143c 330.82deg 340.55deg,
+    #000000 340.55deg 350.28deg,
+    #ffd700 350.28deg 360deg
   );
-  border: 8px solid #8b4513;
+  border: 8px solid #ffd700; /* Borde dorado */
   position: relative;
   transition: transform 4s cubic-bezier(0.23, 1, 0.32, 1);
   z-index: 1;
@@ -325,9 +325,9 @@ p {
   transform: translate(-50%, -50%);
   width: 40px;
   height: 40px;
-  background-color: #ffd700;
+  background-color: #ffd700; /* Dorado */
   border-radius: 50%;
-  border: 3px solid #8b4513;
+  border: 3px solid #000000; /* Borde negro */
   z-index: 10;
 }
 
@@ -435,18 +435,18 @@ p {
 }
 
 .number-cell.red {
-  background-color: #dc2626;
+  background-color: #dc143c; /* Rojo carmesí */
   color: white;
 }
 
 .number-cell.black {
-  background-color: #1f2937;
+  background-color: #000000; /* Negro puro */
   color: white;
 }
 
 .number-cell.green {
-  background-color: #059669;
-  color: white;
+  background-color: #ffd700; /* Dorado para el cero */
+  color: black; /* Texto negro para mejor contraste */
 }
 
 .outside-bets {
@@ -483,12 +483,12 @@ p {
 }
 
 .bet-cell.red {
-  background-color: #dc2626;
+  background-color: #dc143c; /* Rojo carmesí */
   color: white;
 }
 
 .bet-cell.black {
-  background-color: #1f2937;
+  background-color: #000000; /* Negro puro */
   color: white;
 }
 
@@ -512,21 +512,21 @@ p {
 }
 
 .chip[data-value="1000"] {
-  background-color: #3b82f6;
-  border-color: #1e40af;
-  color: white;
+  background-color: #ffd700; /* Dorado */
+  border-color: #b8860b; /* Dorado oscuro */
+  color: black;
 }
 
 .chip[data-value="3000"] {
-  background-color: #dc2626;
-  border-color: #991b1b;
+  background-color: #dc143c; /* Rojo carmesí */
+  border-color: #8b0000; /* Rojo oscuro */
   color: white;
 }
 
 .chip[data-value="5000"] {
-  background-color: #059669;
-  border-color: #047857;
-  color: white;
+  background-color: #000000; /* Negro */
+  border-color: #333333; /* Gris oscuro */
+  color: #ffd700; /* Texto dorado */
 }
 
 .chip:hover {
@@ -648,15 +648,16 @@ p {
 }
 
 .history-number.red {
-  background-color: #dc2626;
+  background-color: #dc143c; /* Rojo carmesí */
 }
 
 .history-number.black {
-  background-color: #1f2937;
+  background-color: #000000; /* Negro puro */
 }
 
 .history-number.green {
-  background-color: #059669;
+  background-color: #ffd700; /* Dorado */
+  color: black; /* Texto negro para mejor contraste */
 }
 
 .stats-grid {
@@ -736,15 +737,16 @@ p {
 }
 
 .result-number.red {
-  background-color: #dc2626;
+  background-color: #dc143c; /* Rojo carmesí */
 }
 
 .result-number.black {
-  background-color: #1f2937;
+  background-color: #000000; /* Negro puro */
 }
 
 .result-number.green {
-  background-color: #059669;
+  background-color: #ffd700; /* Dorado */
+  color: black; /* Texto negro para mejor contraste */
 }
 
 /* Overlay de carga */
@@ -773,8 +775,8 @@ p {
 .loading-spinner {
   width: 60px;
   height: 60px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid var(--color-primary);
+  border: 4px solid rgba(255, 215, 0, 0.3); /* Dorado semitransparente */
+  border-top: 4px solid #ffd700; /* Dorado sólido */
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: var(--space-16);
@@ -896,13 +898,13 @@ p {
     width: 100%;
   }
 
-  /* Área azul para el cero */
+  /* Área dorada para el cero */
   .zero-cell {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: rgba(59, 130, 246, 0.1); /* Fondo azul sutil */
-    border: 2px solid #3b82f6; /* Borde azul */
+    background-color: rgba(255, 215, 0, 0.1); /* Fondo dorado sutil */
+    border: 2px solid #ffd700; /* Borde dorado */
     border-radius: var(--radius-lg);
     padding: var(--space-8);
     margin-bottom: var(--space-8);
@@ -918,14 +920,14 @@ p {
     box-shadow: var(--shadow-md);
   }
 
-  /* Área amarilla para los números 1-36 */
+  /* Área negra elegante para los números 1-36 */
   .numbers-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: var(--space-4);
     width: 100%;
-    background-color: rgba(255, 193, 7, 0.1); /* Fondo amarillo sutil */
-    border: 2px solid #ffc107; /* Borde amarillo */
+    background-color: rgba(0, 0, 0, 0.1); /* Fondo negro sutil */
+    border: 2px solid #333333; /* Borde gris oscuro */
     border-radius: var(--radius-lg);
     padding: var(--space-12);
   }

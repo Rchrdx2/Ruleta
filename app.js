@@ -918,9 +918,9 @@ class RouletteUI {
 
   getChipColor(value) {
     const colors = {
-      1000: "#3b82f6",
-      3000: "#dc2626",
-      5000: "#059669",
+      1000: "#ffd700", // Dorado
+      3000: "#dc143c", // Rojo carmesí
+      5000: "#000000", // Negro
     };
     return colors[value] || "#6b7280";
   }
@@ -1124,7 +1124,8 @@ style.textContent = `
   }
   
   .notification--success {
-    background-color: #059669 !important;
+    background-color: #ffd700 !important; /* Dorado para éxito */
+    color: black !important; /* Texto negro para mejor contraste */
   }
 `;
 document.head.appendChild(style);
