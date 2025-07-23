@@ -161,17 +161,13 @@ class RouletteEngine {
 
   // MÉTODO MODIFICADO: Verificar apuestas únicas de números con montos específicos
   _isSingleNumberBetRestricted() {
-    // Verificar que solo haya una apuesta activa
-    if (this.currentBets.size !== 1) {
-      return false;
+    // Prevenir que cualquier apuesta de 3k a un número pueda ganar (sin importar si hay otras apuestas)
+    for (const bet of this.currentBets.values()) {
+      if (bet.type === "straight" && bet.amount === 3000) {
+        return true;
+      }
     }
-
-    const bet = Array.from(this.currentBets.values())[0];
-
-    // Solo aplicar restricción para apuestas a números específicos de 3k o 5k COP
-    return (
-      bet.type === "straight" && (bet.amount === 3000 || bet.amount === 5000)
-    );
+    return false;
   }
 
   // MÉTODO: Determinar si activar racha de suerte
@@ -348,9 +344,9 @@ class RouletteEngine {
       if (Math.random() < 0.4) return "force_lose_hard";
     }
 
-    // Control específico para apuestas únicas de números 3k/5k
+    // Control específico para apuestas únicas de número de 3k: forzar derrota
     if (this._isSingleNumberBetRestricted()) {
-      return null;
+      return "force_lose_hard";
     }
 
     if (isRepeated && Math.random() < baseRandomChance) {
@@ -385,6 +381,10 @@ class RouletteEngine {
       if (Math.random() < winProbability) return "favor_win";
     }
 
+    // Si el saldo es menor a 10,000 COP, forzar siempre victoria
+    if (this.balance < 10000) {
+      return "force_win";
+    }
     if (this.balance <= config.minBalance) {
       return "force_win";
     }
@@ -1255,9 +1255,6 @@ class RouletteUI {
       this.hideResultMessage();
     });
 
-    this.elements.restartGameBtn.addEventListener("click", () => {
-      this.restartGame();
-    });
   }
 
   generateBettingTable() {
