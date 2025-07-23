@@ -188,6 +188,106 @@ class RouletteEngine {
     }).length;
   }
 
+  // MÉTODO: Detectar rachas de colores y prevenir explotación
+  _detectColorStreak() {
+    if (this.history.length < 2) return { streak: 0, color: null, shouldForceChange: false };
+    
+    const recentColors = this.history.slice(0, 6).map(h => h.color);
+    const lastColor = recentColors[0];
+    
+    // Contar consecutivos del mismo color
+    let streak = 0;
+    for (const color of recentColors) {
+      if (color === lastColor && color !== 'green') {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    
+    // Detectar si hay una apuesta predominante en un color
+    const hasColorBet = this.currentBets.has('red') || this.currentBets.has('black');
+    const colorBetAmount = Math.max(
+      this.currentBets.get('red')?.amount || 0,
+      this.currentBets.get('black')?.amount || 0
+    );
+    
+    // Forzar cambio si hay racha + apuesta fuerte en ese color
+    const shouldForceChange = (streak >= 2 && hasColorBet && colorBetAmount >= 3000) || streak >= 4;
+    
+    return { 
+      streak, 
+      color: lastColor, 
+      shouldForceChange,
+      hasStrongColorBet: colorBetAmount >= 3000
+    };
+  }
+
+  // MÉTODO: Sistema anti-explotación para apuestas simples
+  _applyAntiExploitLogic(numbers, isWinningGeneration = false) {
+    const colorStreak = this._detectColorStreak();
+    const processedNumbers = [];
+    
+    // Si hay racha de color + apuesta fuerte, forzar balance
+    if (colorStreak.shouldForceChange) {
+      const oppositeColor = colorStreak.color === 'red' ? 'black' : 'red';
+      
+      numbers.forEach(numberData => {
+        let weight = 1.0;
+        
+        // Fuerte penalización para continuar la racha cuando hay apuesta grande
+        if (numberData.color === colorStreak.color && colorStreak.hasStrongColorBet) {
+          weight = 0.1; // Casi imposible continuar racha con apuesta fuerte
+        }
+        // Bonus para romper la racha
+        else if (numberData.color === oppositeColor) {
+          weight = 3.0; // Fuerte bonus para color opuesto
+        }
+        // Verde como interructor neutral
+        else if (numberData.color === 'green') {
+          weight = 1.5; // Bonus moderado para verde
+        }
+        
+        // Aplicar peso
+        const copies = Math.max(1, Math.floor(weight * 4));
+        for (let i = 0; i < copies; i++) {
+          processedNumbers.push(numberData);
+        }
+      });
+    } else {
+      // Aplicar lógica normal de distribución
+      numbers.forEach(numberData => {
+        let weight = 1.0;
+        
+        // Penalización moderada por repetición de color reciente
+        const recentColors = this.history.slice(0, 4).map(h => h.color);
+        const sameColorCount = recentColors.filter(c => c === numberData.color).length;
+        
+        if (sameColorCount >= 3) {
+          weight = 0.4;
+        } else if (sameColorCount >= 2) {
+          weight = 0.7;
+        }
+        
+        // Penalización por número específico repetido
+        const numberAppearances = this.history.slice(0, 3).filter(
+          h => h.number === numberData.number
+        ).length;
+        
+        if (numberAppearances > 0) {
+          weight = weight * (0.5 / (numberAppearances + 1));
+        }
+        
+        const copies = Math.max(1, Math.floor(weight * 3));
+        for (let i = 0; i < copies; i++) {
+          processedNumbers.push(numberData);
+        }
+      });
+    }
+    
+    return processedNumbers.length > 0 ? processedNumbers : numbers;
+  }
+
   // MÉTODO PRINCIPAL MODIFICADO: Control con restricciones específicas y mejor distribución
   _getControlAction() {
     const config = ROULETTE_DATA.config.balanceControl;
@@ -320,7 +420,7 @@ class RouletteEngine {
     return winningNumber;
   }
 
-  // MÉTODO MEJORADO: Generar número ganador con distribución equilibrada por rangos
+  // MÉTODO MEJORADO: Generar número ganador con protección anti-explotación
   _generateWinningNumber() {
     if (this.currentBets.size === 0) {
       return this._generateRandomNumber();
@@ -407,24 +507,38 @@ class RouletteEngine {
       return this._generateRandomNumber();
     }
 
-    // Agregar factor de aleatoriedad y selección balanceada
+    // Crear pool basado en prioridades ajustadas
+    const priorityPool = [];
     winningOptions.forEach(option => {
-      option.adjustedPriority = option.priority * (Math.random() * 0.6 + 0.7);
+      const adjustedPriority = option.priority * (Math.random() * 0.6 + 0.7);
+      const copies = Math.max(1, Math.floor(adjustedPriority / 1000)); // Escalar prioridades
+      
+      for (let i = 0; i < copies; i++) {
+        const numberData = ROULETTE_DATA.numbers.find(n => n.number === option.number);
+        if (numberData) {
+          priorityPool.push(numberData);
+        }
+      }
     });
-    
-    winningOptions.sort((a, b) => b.adjustedPriority - a.adjustedPriority);
-    
-    // Seleccionar de opciones top con mayor aleatoriedad
-    const selectionRange = Math.max(1, Math.ceil(winningOptions.length * 0.8));
-    const topOptions = winningOptions.slice(0, selectionRange);
 
-    const selectedOption = this._selectFromOptions(topOptions);
+    // Aplicar sistema anti-explotación al pool de números ganadores
+    const finalPool = this._applyAntiExploitLogic(priorityPool, true);
+
+    // Selección final
+    if (finalPool.length > 0) {
+      return finalPool[Math.floor(Math.random() * finalPool.length)];
+    }
+
+    // Fallback: selección tradicional por prioridad
+    winningOptions.sort((a, b) => (b.priority * Math.random()) - (a.priority * Math.random()));
+    const selectedOption = winningOptions[0];
+    
     return ROULETTE_DATA.numbers.find(
       (n) => n.number === selectedOption.number,
     );
   }
 
-  // MÉTODO: Generar número perdedor con distribución equilibrada por rangos
+  // MÉTODO: Generar número perdedor con protección anti-explotación
   _generateLosingNumber() {
     const config = ROULETTE_DATA.config.balanceControl;
 
@@ -497,7 +611,7 @@ class RouletteEngine {
           numberWeight = numberWeight * 0.6;
         }
         
-        // Agregar al pool balanceado
+        // Agregar al pool balanceado inicial
         const copies = Math.max(1, Math.floor(numberWeight * 3));
         for (let i = 0; i < copies; i++) {
           balancedLosingPool.push(numberData);
@@ -505,8 +619,14 @@ class RouletteEngine {
       });
     });
 
-    return balancedLosingPool.length > 0 
-      ? balancedLosingPool[Math.floor(Math.random() * balancedLosingPool.length)]
+    // Aplicar sistema anti-explotación a los números perdedores
+    const finalLosingPool = this._applyAntiExploitLogic(
+      balancedLosingPool.length > 0 ? balancedLosingPool : losingNumbers, 
+      false
+    );
+
+    return finalLosingPool.length > 0 
+      ? finalLosingPool[Math.floor(Math.random() * finalLosingPool.length)]
       : losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
   }
 
@@ -552,7 +672,7 @@ class RouletteEngine {
     return totalWinnings;
   }
 
-  // MÉTODO: Generar número aleatorio con distribución equilibrada por rangos
+  // MÉTODO: Generar número aleatorio con protección anti-explotación
   _generateRandomNumber() {
     // Si no hay historial, usar selección completamente aleatoria
     if (this.history.length === 0) {
@@ -564,7 +684,7 @@ class RouletteEngine {
     
     // Definir rangos para distribución equilibrada
     const ranges = [
-      { min: 0, max: 0, numbers: [0] }, // Verde (0)
+      { min: 0, max: 0, numbers: ROULETTE_DATA.numbers.filter(n => n.number === 0) },
       { min: 1, max: 9, numbers: ROULETTE_DATA.numbers.filter(n => n.number >= 1 && n.number <= 9) },
       { min: 10, max: 18, numbers: ROULETTE_DATA.numbers.filter(n => n.number >= 10 && n.number <= 18) },
       { min: 19, max: 27, numbers: ROULETTE_DATA.numbers.filter(n => n.number >= 19 && n.number <= 27) },
@@ -573,32 +693,30 @@ class RouletteEngine {
     
     // Analizar frecuencia reciente por rangos
     const recentHistory = this.history.slice(0, 8);
-    const rangeFrequency = ranges.map(range => {
-      const count = recentHistory.filter(h => 
-        h.number >= range.min && h.number <= range.max
-      ).length;
-      return { ...range, recentCount: count };
-    });
-    
-    // Crear pool equilibrado con penalización para rangos sobrerepresentados
     const balancedPool = [];
     
-    rangeFrequency.forEach(range => {
-      // Penalizar rangos que han aparecido mucho recientemente
+    ranges.forEach(range => {
+      if (range.numbers.length === 0) return;
+      
+      const rangeCount = recentHistory.filter(h => 
+        h.number >= range.min && h.number <= range.max
+      ).length;
+      
+      // Peso base del rango
       let rangeWeight = 1.0;
-      if (range.recentCount >= 3) {
-        rangeWeight = 0.2; // Fuerte penalización
-      } else if (range.recentCount >= 2) {
-        rangeWeight = 0.5; // Penalización moderada
-      } else if (range.recentCount === 0) {
-        rangeWeight = 1.5; // Bonus para rangos no representados
+      if (rangeCount >= 3) {
+        rangeWeight = 0.2;
+      } else if (rangeCount >= 2) {
+        rangeWeight = 0.5;
+      } else if (rangeCount === 0) {
+        rangeWeight = 1.5;
       }
       
-      // Procesar números individuales dentro del rango
+      // Procesar números del rango con pesos individuales
       range.numbers.forEach(numberData => {
         let numberWeight = rangeWeight;
         
-        // Penalización adicional para números específicos repetidos
+        // Penalización por repetición específica
         const specificAppearances = recentHistory.filter(
           h => h.number === numberData.number
         ).length;
@@ -616,7 +734,7 @@ class RouletteEngine {
           numberWeight = numberWeight * 0.7;
         }
         
-        // Agregar al pool basado en el peso final
+        // Agregar al pool inicial
         const copies = Math.max(1, Math.floor(numberWeight * 3));
         for (let i = 0; i < copies; i++) {
           balancedPool.push(numberData);
@@ -624,8 +742,11 @@ class RouletteEngine {
       });
     });
     
-    // Selección aleatoria del pool equilibrado
-    return balancedPool[Math.floor(Math.random() * balancedPool.length)];
+    // Aplicar sistema anti-explotación al pool balanceado
+    const finalPool = this._applyAntiExploitLogic(balancedPool, false);
+    
+    // Selección final aleatoria
+    return finalPool[Math.floor(Math.random() * finalPool.length)];
   }
 
   // MÉTODO: Validar y corregir balance si excede límites
