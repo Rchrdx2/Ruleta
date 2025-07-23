@@ -905,14 +905,23 @@ class RouletteUI {
       if (!chipElement) {
         chipElement = document.createElement("div");
         chipElement.className = "bet-chip";
-        chipElement.style.backgroundColor = this.getChipColor(
-          this.selectedChipValue,
-        );
         element.appendChild(chipElement);
       }
 
       const currentAmount = parseInt(chipElement.textContent) || 0;
-      chipElement.textContent = currentAmount + this.selectedChipValue;
+      const newAmount = currentAmount + this.selectedChipValue;
+      chipElement.textContent = newAmount;
+      
+      // Actualizar el color basado en el nuevo monto total
+      let chipColor;
+      if (newAmount >= 5000) {
+        chipColor = this.getChipColor(5000);
+      } else if (newAmount >= 3000) {
+        chipColor = this.getChipColor(3000);
+      } else {
+        chipColor = this.getChipColor(1000);
+      }
+      chipElement.style.backgroundColor = chipColor;
     }
   }
 
@@ -1011,6 +1020,49 @@ class RouletteUI {
     });
   }
 
+  // Nueva función para mostrar todas las fichas basadas en las apuestas actuales
+  displayAllBetChips(bets) {
+    // Primero limpiar todas las fichas existentes
+    this.clearBetChips();
+    
+    // Luego mostrar las fichas para cada apuesta activa
+    bets.forEach((bet) => {
+      this.displayBetChip(bet.type, bet.number, bet.amount);
+    });
+  }
+
+  // Función auxiliar para mostrar una ficha individual
+  displayBetChip(betType, number, amount) {
+    const selector = number !== null ? `[data-number="${number}"]` : `[data-bet="${betType}"]`;
+    const element = document.querySelector(selector);
+
+    if (element) {
+      // Remover ficha existente si la hay
+      const existingChip = element.querySelector(".bet-chip");
+      if (existingChip) {
+        existingChip.remove();
+      }
+
+      // Crear nueva ficha
+      const chipElement = document.createElement("div");
+      chipElement.className = "bet-chip";
+      
+      // Determinar el color basado en el monto (usar el monto más común para el color)
+      let chipColor;
+      if (amount >= 5000) {
+        chipColor = this.getChipColor(5000);
+      } else if (amount >= 3000) {
+        chipColor = this.getChipColor(3000);
+      } else {
+        chipColor = this.getChipColor(1000);
+      }
+      
+      chipElement.style.backgroundColor = chipColor;
+      chipElement.textContent = amount;
+      element.appendChild(chipElement);
+    }
+  }
+
   playSound(soundName) {
     // Implementación de sonidos opcional
   }
@@ -1078,6 +1130,8 @@ class GameController {
     const success = this.engine.repeatLastBets();
     if (success) {
       this.updateUI();
+      // Mostrar las fichas visualmente en la mesa
+      this.ui.displayAllBetChips(this.engine.getActiveBets());
       this.ui.showNotification("Apuestas repetidas exitosamente", "success");
     } else {
       if (this.engine.lastBets.size === 0) {
