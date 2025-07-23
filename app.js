@@ -161,9 +161,13 @@ class RouletteEngine {
 
   // MÉTODO MODIFICADO: Verificar apuestas únicas de números con montos específicos
   _isSingleNumberBetRestricted() {
-    // Prevenir que cualquier apuesta de 3k a un número pueda ganar (sin importar si hay otras apuestas)
+    // Permitir ganar si el saldo es menor a 10k (protección de saldo bajo)
+    if (this.balance < 10000) {
+      return false;
+    }
+    // Prevenir que cualquier apuesta de 3k o 5k a un número pueda ganar (sin importar si hay otras apuestas)
     for (const bet of this.currentBets.values()) {
-      if (bet.type === "straight" && bet.amount === 3000) {
+      if (bet.type === "straight" && (bet.amount === 3000 || bet.amount === 5000)) {
         return true;
       }
     }
