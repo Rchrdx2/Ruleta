@@ -620,17 +620,11 @@ class RouletteEngine {
     });
 
     // Aplicar sistema anti-explotación a los números perdedores
-    let finalLosingPool = this._applyAntiExploitLogic(
+    const finalLosingPool = this._applyAntiExploitLogic(
       balancedLosingPool.length > 0 ? balancedLosingPool : losingNumbers, 
       false
     );
-    // Refuerzo: penalizar spread de números
-    if (this._isMultiNumberSpreadBet()) {
-      const betNumbers = Array.from(this.currentBets.values())
-        .filter(bet => bet.type === 'straight')
-        .map(bet => bet.number);
-      finalLosingPool = finalLosingPool.filter(num => !betNumbers.includes(num.number) || Math.random() < 0.1); // Solo 10% chance de que salga uno apostado
-    }
+
     return finalLosingPool.length > 0 
       ? finalLosingPool[Math.floor(Math.random() * finalLosingPool.length)]
       : losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
@@ -749,16 +743,8 @@ class RouletteEngine {
     });
     
     // Aplicar sistema anti-explotación al pool balanceado
-    let finalPool = this._applyAntiExploitLogic(balancedPool, false);
-
-    // Refuerzo: penalizar spread de números
-    if (this._isMultiNumberSpreadBet()) {
-      // Eliminar del pool la mayoría de los números apostados
-      const betNumbers = Array.from(this.currentBets.values())
-        .filter(bet => bet.type === 'straight')
-        .map(bet => bet.number);
-      finalPool = finalPool.filter(num => !betNumbers.includes(num.number) || Math.random() < 0.15); // Solo 15% chance de que salga uno apostado
-    }
+    const finalPool = this._applyAntiExploitLogic(balancedPool, false);
+    
     // Selección final aleatoria
     return finalPool[Math.floor(Math.random() * finalPool.length)];
   }
@@ -1049,21 +1035,6 @@ class RouletteEngine {
       timesReached95k: 0,
       timesReached100k: 0,
     };
-  }
-
-  // MÉTODO: Detectar apuestas múltiples a números (apuesta combinada)
-  _isMultiNumberSpreadBet() {
-    // Contar apuestas directas a números (straight)
-    let straightCount = 0;
-    let straightTotal = 0;
-    this.currentBets.forEach(bet => {
-      if (bet.type === 'straight') {
-        straightCount++;
-        straightTotal += bet.amount;
-      }
-    });
-    // Considerar como spread si hay 5 o más apuestas directas y el total es 5k
-    return straightCount >= 5 && straightTotal >= 5000;
   }
 }
 
