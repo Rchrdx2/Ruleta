@@ -149,6 +149,33 @@
       </div>
     </div>
 
+    <!-- Modal de felicitaciones por alcanzar 100k -->
+    <div class="congratulations-modal" id="congratulationsModal">
+      <div class="congratulations-content">
+        <div class="congratulations-icon">🎉</div>
+        <h2>¡FELICITACIONES!</h2>
+        <p>Has alcanzado la meta de <strong>$100,000 COP</strong></p>
+        <p>¡Eres un verdadero maestro de la ruleta!</p>
+        <div class="congratulations-stats">
+          <div class="final-stat">
+            <span class="stat-label">Saldo final:</span>
+            <span class="stat-value" id="finalBalance">$100,000 COP</span>
+          </div>
+          <div class="final-stat">
+            <span class="stat-label">Giros totales:</span>
+            <span class="stat-value" id="finalSpins">0</span>
+          </div>
+          <div class="final-stat">
+            <span class="stat-label">Ganancia total:</span>
+            <span class="stat-value" id="finalProfit">$0 COP</span>
+          </div>
+        </div>
+        <button class="btn btn--primary" id="restartGameBtn">
+          Comenzar Nuevo Juego
+        </button>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>

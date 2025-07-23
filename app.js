@@ -483,11 +483,15 @@ class RouletteEngine {
     this.lastBets = new Map(this.currentBets);
     this.currentBets.clear();
 
+    // Verificar si se alcanzó la meta de 100k
+    const hasReached100k = this.balance >= 100000;
+
     return {
       totalWinnings,
       winningBets,
       losingBets,
       netProfit: totalWinnings - totalBetAmount,
+      hasReached100k, // Nueva propiedad para indicar si se alcanzó la meta
     };
   }
 
@@ -664,6 +668,28 @@ class RouletteEngine {
       currentTotal + amount <= ROULETTE_DATA.config.maxBet
     );
   }
+
+  // MÉTODO: Reiniciar el juego completamente
+  restartGame() {
+    this.balance = ROULETTE_DATA.config.initialBalance;
+    this.currentBets = new Map();
+    this.lastBets = new Map();
+    this.history = [];
+    this.statistics = {
+      totalSpins: 0,
+      totalWins: 0,
+      totalProfit: 0,
+    };
+    this.consecutiveLosses = 0;
+    this.consecutiveWins = 0;
+    this.lastControlAction = null;
+    this.luckStreak = 0;
+    this.progressStats = {
+      timesNear90k: 0,
+      timesReached95k: 0,
+      timesReached100k: 0,
+    };
+  }
 }
 
 // =============================
@@ -767,6 +793,11 @@ class RouletteUI {
       resultText: document.getElementById("resultText"),
       resultNumber: document.getElementById("resultNumber"),
       loadingOverlay: document.getElementById("loadingOverlay"),
+      congratulationsModal: document.getElementById("congratulationsModal"),
+      finalBalance: document.getElementById("finalBalance"),
+      finalSpins: document.getElementById("finalSpins"),
+      finalProfit: document.getElementById("finalProfit"),
+      restartGameBtn: document.getElementById("restartGameBtn"),
     };
   }
 
@@ -791,6 +822,10 @@ class RouletteUI {
 
     this.elements.resultMessage.addEventListener("click", () => {
       this.hideResultMessage();
+    });
+
+    this.elements.restartGameBtn.addEventListener("click", () => {
+      this.restartGame();
     });
   }
 
@@ -1014,6 +1049,58 @@ class RouletteUI {
     this.elements.resultMessage.classList.remove("show");
   }
 
+  showCongratulationsModal(stats) {
+    // Actualizar las estadísticas finales
+    this.elements.finalBalance.textContent = `$${stats.balance.toLocaleString("es-CO")} COP`;
+    this.elements.finalSpins.textContent = stats.totalSpins;
+    this.elements.finalProfit.textContent = `$${stats.totalProfit.toLocaleString("es-CO")} COP`;
+    
+    // Mostrar el modal
+    this.elements.congratulationsModal.classList.add("show");
+    
+    // Reproducir sonido de celebración (opcional)
+    this.playSound("celebration");
+  }
+
+  hideCongratulationsModal() {
+    this.elements.congratulationsModal.classList.remove("show");
+  }
+
+  restartGame() {
+    // Ocultar el modal
+    this.hideCongratulationsModal();
+    
+    // Reiniciar el juego a través del controlador
+    window.gameController.restartGame();
+    
+    // Mostrar notificación de nuevo juego
+    this.showNotification("¡Nuevo juego iniciado! ¡Buena suerte!", "success");
+  }
+
+  disableGameControls() {
+    this.elements.spinBtn.disabled = true;
+    this.elements.repeatBtn.disabled = true;
+    this.elements.clearBtn.disabled = true;
+    
+    // Deshabilitar también las fichas y celdas de apuesta
+    document.querySelectorAll(".chip, .number-cell, .bet-cell").forEach(element => {
+      element.style.pointerEvents = "none";
+      element.style.opacity = "0.5";
+    });
+  }
+
+  enableGameControls() {
+    this.elements.spinBtn.disabled = false;
+    this.elements.repeatBtn.disabled = false;
+    this.elements.clearBtn.disabled = false;
+    
+    // Rehabilitar fichas y celdas de apuesta
+    document.querySelectorAll(".chip, .number-cell, .bet-cell").forEach(element => {
+      element.style.pointerEvents = "auto";
+      element.style.opacity = "1";
+    });
+  }
+
   clearBetChips() {
     document.querySelectorAll(".bet-chip").forEach((chip) => {
       chip.remove();
@@ -1115,6 +1202,22 @@ class GameController {
       this.ui.showResultMessage(winningNumber, result);
       this.ui.clearBetChips();
       this.updateUI();
+
+      // Verificar si se alcanzó la meta de 100k
+      if (result.hasReached100k) {
+        // Deshabilitar controles del juego
+        this.ui.disableGameControls();
+        
+        // Mostrar el modal de felicitaciones después de un breve delay
+        setTimeout(() => {
+          this.ui.hideCongratulationsModal(); // Asegurar que esté oculto primero
+          this.ui.showCongratulationsModal({
+            balance: this.engine.balance,
+            totalSpins: this.engine.statistics.totalSpins,
+            totalProfit: this.engine.statistics.totalProfit,
+          });
+        }, 2000); // 2 segundos después del resultado
+      }
     } catch (error) {
       console.error("Error during spin:", error);
       this.ui.hideLoadingOverlay();
@@ -1158,6 +1261,27 @@ class GameController {
     this.ui.updateActiveBets(this.engine.getActiveBets());
     this.ui.updateHistory(this.engine.history);
     this.ui.updateStatistics(this.engine.statistics);
+  }
+
+  restartGame() {
+    // Reiniciar el motor del juego
+    this.engine.restartGame();
+    
+    // Limpiar la interfaz
+    this.ui.clearBetChips();
+    this.ui.hideResultMessage();
+    
+    // Rehabilitar controles
+    this.ui.enableGameControls();
+    
+    // Actualizar la interfaz
+    this.updateUI();
+    
+    // Resetear la ruleta
+    this.wheel.resetBall();
+    
+    // Seleccionar la ficha de 1000 por defecto
+    this.ui.selectChip(1000);
   }
 }
 

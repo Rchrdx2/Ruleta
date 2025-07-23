@@ -788,6 +788,109 @@ p {
   margin: 0;
 }
 
+/* Modal de felicitaciones por alcanzar 100k */
+.congratulations-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--duration-normal) var(--ease-standard);
+}
+
+.congratulations-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.congratulations-content {
+  background: linear-gradient(135deg, var(--color-surface) 0%, rgba(255, 215, 0, 0.1) 100%);
+  border: 3px solid var(--color-text);
+  border-radius: var(--radius-lg);
+  padding: var(--space-32);
+  text-align: center;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 215, 0, 0.2),
+    inset 0 1px 0 rgba(255, 215, 0, 0.1);
+  animation: congratulationsEntry 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.congratulations-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-16);
+  animation: celebrationBounce 2s infinite;
+}
+
+.congratulations-content h2 {
+  color: var(--color-text);
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--space-16);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  letter-spacing: 2px;
+}
+
+.congratulations-content p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-16);
+  line-height: var(--line-height-normal);
+}
+
+.congratulations-stats {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-base);
+  padding: var(--space-20);
+  margin: var(--space-24) 0;
+  border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.final-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.1);
+  font-size: var(--font-size-lg);
+}
+
+.final-stat:last-child {
+  border-bottom: none;
+}
+
+.final-stat .stat-label {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.final-stat .stat-value {
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.congratulations-content .btn {
+  margin-top: var(--space-20);
+  padding: var(--space-12) var(--space-32);
+  font-size: var(--font-size-lg);
+  min-width: 200px;
+  box-shadow: 0 4px 15px rgba(220, 20, 60, 0.3);
+  transition: all var(--duration-normal) var(--ease-standard);
+}
+
+.congratulations-content .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(220, 20, 60, 0.4);
+}
+
 /* Animaciones */
 @keyframes spin {
   0% {
@@ -809,6 +912,32 @@ p {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes congratulationsEntry {
+  0% {
+    transform: scale(0.5) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1) rotate(5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes celebrationBounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-10px) scale(1.1);
+  }
+  60% {
+    transform: translateY(-5px) scale(1.05);
   }
 }
 
