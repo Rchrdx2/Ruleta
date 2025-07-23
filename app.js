@@ -1,3 +1,20 @@
+// === LÓGICA DEL BOTÓN DE AYUDA FLOTANTE ===
+document.addEventListener('DOMContentLoaded', () => {
+  const helpFab = document.getElementById('helpFab');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelpModal = document.getElementById('closeHelpModal');
+  if (helpFab && helpModal && closeHelpModal) {
+    helpFab.addEventListener('click', () => {
+      helpModal.classList.add('active');
+    });
+    closeHelpModal.addEventListener('click', () => {
+      helpModal.classList.remove('active');
+    });
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) helpModal.classList.remove('active');
+    });
+  }
+});
 /**
  * JUEGO DE RULETA EUROPEA - ARQUITECTURA MODULAR
  * Implementación con control específico para apuestas únicas de números
@@ -49,7 +66,7 @@ const ROULETTE_DATA = {
     { number: 26, color: "black" },
   ],
   betTypes: {
-    straight: { name: "Número", payout: 20 }, // Pago reducido de 35 a 20
+    straight: { name: "Número", payout: 18 }, // Pago reducido de 20 a 18
     red: { name: "Rojo", payout: 1 },
     black: { name: "Negro", payout: 1 },
     odd: { name: "Impar", payout: 1 },
@@ -90,6 +107,33 @@ const ROULETTE_DATA = {
 // =============================
 
 class RouletteEngine {
+  // --- ANTI-RACHAS ---
+  _updateStreaks(isWin) {
+    if (isWin) {
+      this.consecutiveWins = (this.consecutiveWins || 0) + 1;
+      this.consecutiveLosses = 0;
+    } else {
+      this.consecutiveLosses = (this.consecutiveLosses || 0) + 1;
+      this.consecutiveWins = 0;
+    }
+  }
+
+  _shouldBreakStreak() {
+    // Si hay 4+ victorias o derrotas seguidas, activar anti-rachas
+    const maxStreak = 4;
+    return (this.consecutiveWins >= maxStreak || this.consecutiveLosses >= maxStreak);
+  }
+
+  _forceBreakStreak(currentResult) {
+    // Si el jugador está en racha de victorias, forzar derrota. Si está en racha de derrotas, forzar victoria.
+    if (this.consecutiveWins >= 4) {
+      return false; // Forzar derrota
+    }
+    if (this.consecutiveLosses >= 4) {
+      return true; // Forzar victoria
+    }
+    return currentResult;
+  }
   constructor() {
     this.balance = ROULETTE_DATA.config.initialBalance;
     this.currentBets = new Map();
@@ -294,55 +338,53 @@ class RouletteEngine {
 
     if (!config.enabled) return null;
 
-    // NUEVA LÓGICA: Reducir control cuando se repiten apuestas para mayor naturalidad
     const isRepeated = this._isRepeatedBets();
-    const baseRandomChance = isRepeated ? 0.6 : 0.3; // Más aleatoriedad en repeticiones
+    const baseRandomChance = isRepeated ? 0.6 : 0.3;
 
-    // NUEVA LÓGICA: Control específico para apuestas únicas de números 3k/5k
+    // NUEVO: Si solo hay apuestas a números (straight), reducir la probabilidad de ganar
+    const onlyStraightBets = Array.from(this.currentBets.values()).every(bet => bet.type === "straight");
+    if (onlyStraightBets && this.currentBets.size > 0) {
+      // 40% de probabilidad de forzar derrota si solo hay apuestas a números
+      if (Math.random() < 0.4) return "force_lose_hard";
+    }
+
+    // Control específico para apuestas únicas de números 3k/5k
     if (this._isSingleNumberBetRestricted()) {
-      // Sin protección para fichas únicas de 3k/5k COP a números
-      return null; // Resultado completamente aleatorio
+      return null;
     }
 
-    // Agregar más aleatoriedad cuando se repiten apuestas
     if (isRepeated && Math.random() < baseRandomChance) {
-      return null; // Resultado natural más frecuente
+      return null;
     }
 
-    // Control de rachas de suerte (reducido en repeticiones)
     if (this.luckStreak > 0) {
       this.luckStreak--;
       return isRepeated && Math.random() < 0.3 ? null : "favor_win";
     }
 
-    // Activar racha de suerte (menos probable en repeticiones)
     if (this._shouldTriggerLuckStreak() && (!isRepeated || Math.random() < 0.5)) {
       this.luckStreak = 4;
       return "luck_streak";
     }
 
-    // Control absoluto cerca del límite máximo
     if (this.balance >= config.absoluteMaxBalance - 10000) {
       return "force_lose_hard";
     }
 
-    // Zona de impulso final mejorada (75k-95k) - reducido en repeticiones
     if (this.balance >= 75000 && this.balance < 95000) {
       const finalPush = (this.balance - 75000) / 20000;
       let winProbability = 0.5 + finalPush * 0.3;
-      if (isRepeated) winProbability *= 0.7; // Reducir en repeticiones
+      if (isRepeated) winProbability *= 0.7;
       if (Math.random() < winProbability) return "favor_win";
     }
 
-    // Zona de crecimiento acelerado (60k-75k) - reducido en repeticiones
     if (this.balance >= 60000 && this.balance < 75000) {
       const growthBoost = (this.balance - 60000) / 15000;
       let winProbability = 0.45 + growthBoost * 0.25;
-      if (isRepeated) winProbability *= 0.6; // Reducir en repeticiones
+      if (isRepeated) winProbability *= 0.6;
       if (Math.random() < winProbability) return "favor_win";
     }
 
-    // Control directo en límites extremos
     if (this.balance <= config.minBalance) {
       return "force_win";
     }
@@ -351,7 +393,6 @@ class RouletteEngine {
       return "force_lose";
     }
 
-    // Control gradual en zonas de transición - ajustado para repeticiones
     const lowerTransition = config.minBalance + config.transitionZone;
     const upperTransition = config.maxBalance - config.transitionZone;
 
@@ -371,7 +412,6 @@ class RouletteEngine {
       return Math.random() < lossProbability ? "favor_lose" : null;
     }
 
-    // Control adaptativo basado en rachas - reducido en repeticiones
     if (this.consecutiveLosses >= 3 && this.balance < config.initialBalance) {
       const winChance = isRepeated ? 0.5 : 0.7;
       return Math.random() < winChance ? "favor_win" : null;
@@ -855,6 +895,51 @@ class RouletteEngine {
   }
 
   // Resto de métodos existentes...
+  // --- SORTEO CON ANTI-RACHAS ---
+  getSpinResult(bets) {
+    // Lógica original para determinar si el jugador gana
+    // Suponiendo que bets es un array de apuestas activas
+    // y que existe un método original para determinar el resultado (simulación)
+    let playerWins = false;
+    let winningNumber = this._getRandomNumber();
+    // Revisar si alguna apuesta es ganadora
+    for (const bet of bets) {
+      if (this.checkWinningBet(bet, winningNumber)) {
+        playerWins = true;
+        break;
+      }
+    }
+    // Aplicar anti-rachas si corresponde
+    if (this._shouldBreakStreak()) {
+      playerWins = this._forceBreakStreak(playerWins);
+      // Si se forzó el resultado, buscar un número que cumpla la condición
+      let tries = 0;
+      while (tries < 50) {
+        const candidate = this._getRandomNumber();
+        let win = false;
+        for (const bet of bets) {
+          if (this.checkWinningBet(bet, candidate)) {
+            win = true;
+            break;
+          }
+        }
+        if (win === playerWins) {
+          winningNumber = candidate;
+          break;
+        }
+        tries++;
+      }
+    }
+    // Actualizar rachas
+    this._updateStreaks(playerWins);
+    return winningNumber;
+  }
+
+  _getRandomNumber() {
+    // Devuelve un objeto {number, color} aleatorio de ROULETTE_DATA.numbers
+    const idx = Math.floor(Math.random() * ROULETTE_DATA.numbers.length);
+    return ROULETTE_DATA.numbers[idx];
+  }
   placeBet(betType, amount, number = null) {
     if (this.balance < amount) {
       console.warn("Balance insuficiente para esta apuesta");

@@ -7,6 +7,24 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- Botón flotante de ayuda -->
+    <button id="helpFab" title="Ayuda">?</button>
+
+    <!-- Modal de ayuda -->
+    <div id="helpModal">
+      <div class="help-modal-content">
+        <button id="closeHelpModal">&times;</button>
+        <h2>¿Cómo jugar?</h2>
+        <ul>
+          <li>Selecciona una ficha y haz clic en la mesa para apostar.</li>
+          <li>Puedes apostar a un número, color, docena, columna, par/impar o rango.</li>
+          <li>Presiona <b>Girar Ruleta</b> para jugar.</li>
+          <li>El saldo inicial es de $50,000 COP. Llega a $100,000 COP para ganar.</li>
+          <li>El pago por acertar un número es 18x, otras apuestas pagan menos.</li>
+          <li>¡Juega responsablemente y diviértete!</li>
+        </ul>
+      </div>
+    </div>
     <div class="container">
       <header class="game-header">
         <h1>Ruleta Europea</h1>
